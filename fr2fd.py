@@ -16,7 +16,7 @@ import signal
 import re
 import time, random
 
-import gplearn
+#from gplearn.genetic import SymbolicRegressor
 #import sympy
 
 # Pro debugování:
@@ -74,13 +74,14 @@ def loadPoints(filename):
 		fp.readline() # Nastavení pro TinyGp se přeskočí
 		for line in fp: # Načítají se body
 			coords = line.split()
-			X_train.append(coords[:-1])
-			y_train.append(coords[-1])
+			X_train.append(list(map(float, coords[:-1])))
+			y_train.append(float(coords[-1]))
 	
 	return (X_train, y_train)
 
 def regressionFr(X_train, y_train, seed=None, population_size=1000, generations=20):
-	est_gp = gplearn.genetic.SymbolicRegressor(
+	from gplearn.genetic import SymbolicRegressor
+	est_gp = SymbolicRegressor(
 		population_size=population_size, generations=generations, tournament_size=20, stopping_criteria=0.0,
 		const_range=(-1.0, 1.0), init_depth=(2, 6), init_method='half and half',
 		function_set=('add', 'sub', 'mul', 'div'), metric='mean absolute error',
@@ -95,7 +96,7 @@ def fr2fd(expression):
 	from sympy import symbols, Add, Mul, Lambda, exp, integrate, sympify
 	#from sympy.parsing.sympy_parser import parse_expr as sympy_parse_expr
 	x, y = symbols('x y')
-	t = symbols("X0")
+	t = symbols("t")
 	locals = {
 		"add": Add,
 		"mul": Mul,
@@ -112,7 +113,7 @@ def fr2fd(expression):
 	printDbg(fd == uf.diff(t))
 	printDbg(fr == fd / rf)
 	
-	return (fr, fd, uf, rf)
+	return {"h(t)": fr, "f(t)": fd, "F(t)": uf, "R(t)": rf}
 
 def main():
 	
@@ -162,11 +163,13 @@ def main():
 	debug.DEBUG_EN = arguments.debug
 	
 	# == Symbolická regrese za pomocí genetického programování a následná integrace za pomocí symbolického výpočtu ==
-	print("seed =", arguments.seed)
+	seed = arguments.seed % 2**32 # Takto to vyžaduje gplearn.
+	print("seed =", seed)
 	X_train, y_train = loadPoints(arguments.file_with_points)
-	fr_str = regressionFr(X_train, y_train, arguments.seed)
-	for expr in fr2fd(fr_str):
-		print(expr)
+	fr_str = regressionFr(X_train, y_train, seed)
+	print("h(t) =", fr_str)
+	for f, expr in fr2fd(fr_str).items():
+		print(f, "=", expr)
 
 if __name__ == '__main__':
 	main()
