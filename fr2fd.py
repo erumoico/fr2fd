@@ -15,6 +15,7 @@ import os
 import signal
 import re
 import time, random
+import collections
 
 #from gplearn.genetic import SymbolicRegressor
 import sympy
@@ -42,6 +43,80 @@ REGEX_NEW_LINE = re.compile(r"""(?:\r\n|[\r\n])""")
 # ====== FUNKCE A TŘÍDY ======
 
 replaceNewLine = lambda input_string: REGEX_NEW_LINE.sub(r"""\\n """, input_string)
+
+import tkinter
+
+class CoordsGetter:
+	Coord = collections.namedtuple("Coord", "x y")
+	
+	def __init__(self):
+		self.width = 100
+		self.width_scale = 1
+		self.canvas_width = self.width * self.width_scale
+		self.height = 100
+		self.height_scale = 1
+		self.canvas_height = self.height * self.height_scale
+		
+		self.coords = []
+		self.window = tkinter.Tk(className = "CoordsGetter")
+		self.canvas = tkinter.Canvas(self.window, width = self.canvas_width, height = self.canvas_height)
+		self.canvas.pack()
+		
+		# Nastavení událostí na tlačítka
+		self.canvas.bind("<Button-1>", self.pushCoord)
+		self.window.bind('<BackSpace>', self.popCoord)
+		self.window.bind('<Return>', self.close)
+		self.window.protocol('WM_DELETE_WINDOW', self.close)
+		
+		# Vykreslení souřadné osy
+		self.drawAxis()
+	
+	def getCoords(self):
+		# Čekání ve smyčce
+		self.window.mainloop()
+		
+		# Vrácení souřadnic
+		return self.coords
+	
+	def pushCoord(self, event):
+		event_coord = self.Coord(event.x, event.y)
+		x = event_coord.x // self.width_scale
+		y = event_coord.y // self.height_scale
+		coord = self.Coord(x, y)
+		self.coords.append(coord)
+		print("Pushed", coord)
+		
+		# Vykreslení křížku
+		self.drawCross(event_coord, tag=coord)
+	
+	def popCoord(self, event=None):
+		if self.coords:
+			coord = self.coords.pop()
+			print("Popped", coord)
+			
+			self.canvas.delete(coord)
+		else:
+			print("Nothing to pop.")
+	
+	def close(self, event=None):
+		self.window.destroy()
+	
+	def drawCross(self, coord, tag=None, cross_length = 2):
+		"""
+		Vykreslení křížku
+		"""
+		first_line = self.canvas.create_line(coord.x - cross_length, coord.y - cross_length, coord.x + (cross_length+1), coord.y + (cross_length+1))
+		second_line = self.canvas.create_line(coord.x - cross_length, coord.y + cross_length, coord.x + (cross_length+1), coord.y - (cross_length+1))
+		if tag is not None:
+			self.canvas.addtag_withtag(tag, first_line)
+			self.canvas.addtag_withtag(tag, second_line)
+	
+	def drawAxis(self):
+		"""
+		Vykreslení souřadné osy
+		"""
+		self.canvas.create_line(0, 0, 0, self.canvas_height, dash=(2,2))
+		self.canvas.create_line(0, 0, self.canvas_width, 0, dash=(2,2))
 
 # ====== MAIN ======
 

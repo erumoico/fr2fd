@@ -17,7 +17,7 @@ SRC=$(program).py __init__.py my_exceptions.py debug.py
 OTHER=Makefile $(doc_name).pdf
 
 # = Seznam potřebných Python balíčků =
-PY_PACKAGES=sympy[alldeps] gplearn[alldeps]
+PY_PACKAGES=sympy[alldeps] gplearn[alldeps] tkinter[alldeps]
 
 # = Nastavení cílů bez souboru =
 .PHONY: clean cleanDoc cleanBackup
