@@ -12,62 +12,65 @@ program=fr2fd # Failure Rate λ(t) to Failure Density f(t)
 doc_name=dokumentace
 pack_name=$(login)
 
-# Seznam zdrojových souborů
+# = Seznam zdrojových souborů =
 SRC=$(program).py __init__.py my_exceptions.py debug.py
 OTHER=Makefile $(doc_name).pdf
 
-# Seznam potřebných Python balíčků
-PY_PACKAGES=scikit-learn[alldeps] gplearn[alldeps] inspyred[alldeps]
-#inspyred terminaltables
+# = Seznam potřebných Python balíčků =
+PY_PACKAGES=sympy[alldeps] gplearn[alldeps]
 
-.PHONY: build all doc install clean clean_doc clean_all pack pack_zip pack_tar test
+# = Nastavení cílů bez souboru =
+.PHONY: clean cleanDoc cleanBackup
+.PHONY: pack packZip packTar
+.PHONY: build all doc install test
 
-# Zkompiluje program (výchozí)
-build: $(program)
+# = Nastavení výchozího cíle =
+.PHONY: default
+default: build
 
+# = Obecné cíle =
 all: build doc
+
+# = Obecné cíle pro sestavení =
+build: $(program)
 
 doc:
 	make -C doc
 	cp doc/$(doc_name).pdf ./
 
-# Nainstaluje potřebné balíky
+# = Instalace potřebných balíků =
 install:
 	pip3 install --user --upgrade $(PY_PACKAGES)
 
-# Smaže všechny soubory co nemají být odevzdány
+# = Smazání všech dočasných souborů =
 clean:
 	rm -f *.pyc $(program)
 
-clean_doc:
+cleanDoc:
 	make -C doc clean
 
-# Zabalí program a dokumentaci
-pack: all pack_zip
+cleanBackup:
+	rm -f *~ *.orig
 
-pack_zip: all
+# = Zabalí program a dokumentaci =
+pack: packZip
+
+packZip: all
 	rm -f $(pack_name).zip
 	zip -r $(pack_name).zip $(SRC) $(HEAD) $(OTHER)
 
-pack_tar: all
+packTar: all
 	rm -f $(pack_name).tar.gz
 	tar -cvzf $(pack_name).tar.gz $(SRC) $(HEAD) $(OTHER)
 
-# PROGRAM
-# =======
-
+# = Konkrétní cíle pro sestavení =
 # Přidělení práv ke spuštění a vytvoření relativního symbolického odkazu
 $(program):
 	chmod +x $(program).py
 	ln -s -r $(program).py $(program)
 
-# TEST
-# ----
-# ls -1b "${PWD}/../priklady/emaily/"*.[eE][mM][lL] | sed 's/^/ham:/' > labeled_emails.txt
-# ls -1b "${PWD}/../priklady/spamy/"*.[eE][mM][lL] | sed 's/^/spam:/' >> labeled_emails.txt
-
-# Spustí testy
-# test: $(program)
-# 	wget -N --no-check-certificate 'https://www.fit.vutbr.cz/study/courses/BMS/public/proj2017/bts.csv'
+# = Cíle pro testování =
+test: build
+	true
 
 # konec souboru Makefile
