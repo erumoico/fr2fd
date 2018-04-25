@@ -17,7 +17,10 @@ import re
 import time, random
 
 #from gplearn.genetic import SymbolicRegressor
-#import sympy
+import sympy
+
+#import numpy as np
+#import matplotlib.pyplot as plt
 
 # Pro debugování:
 import debug
@@ -79,11 +82,16 @@ def loadPoints(filename):
 	
 	return (X_train, y_train)
 
-def regressionFr(X_train, y_train, seed=None, population_size=1000, generations=20):
+def regressionFr(X_train, y_train, seed=None, population_size=None, generations=None):
+	if population_size is None:
+		population_size = 1000
+	if generations is None:
+		generations = 20
+	
 	from gplearn.genetic import SymbolicRegressor
 	est_gp = SymbolicRegressor(
 		population_size=population_size, generations=generations, tournament_size=20, stopping_criteria=0.0,
-		const_range=(-1.0, 1.0), init_depth=(2, 6), init_method='half and half',
+		const_range=(-5.0, 5.0), init_depth=(2, 6), init_method='half and half',
 		function_set=('add', 'sub', 'mul', 'div'), metric='mean absolute error',
 		parsimony_coefficient=0.001, p_crossover=0.9, p_subtree_mutation=0.01,
 		p_hoist_mutation=0.01, p_point_mutation=0.01, p_point_replace=0.05, max_samples=1.0,
@@ -95,13 +103,27 @@ def regressionFr(X_train, y_train, seed=None, population_size=1000, generations=
 def fr2fd(expression):
 	from sympy import symbols, Add, Mul, Lambda, exp, integrate, sympify
 	#from sympy.parsing.sympy_parser import parse_expr as sympy_parse_expr
+	
+	# gplearn 'div' : protected division where a denominator near-zero returns 1.
+	from sympy import Function, S
+	class gplearnDiv(Function):
+		@classmethod
+		def eval(cls, x, y):
+			if y.is_Number:
+				if abs(y) <= 0.001:
+					return S.One
+				else:
+					return x/y
+			elif x.is_Symbol and x is y:
+				return S.One
+	
 	x, y = symbols('x y')
 	t = symbols("t")
 	locals = {
 		"add": Add,
 		"mul": Mul,
 		"sub": Lambda((x, y), x - y),
-		"div": Lambda((x, y), x/y),
+		"div": gplearnDiv,
 		"X0": t
 	}
 	fr = sympify(expression, locals=locals, evaluate=False) # h(t) nebo-li λ(t)
@@ -166,10 +188,26 @@ def main():
 	seed = arguments.seed % 2**32 # Takto to vyžaduje gplearn.
 	print("seed =", seed)
 	X_train, y_train = loadPoints(arguments.file_with_points)
-	fr_str = regressionFr(X_train, y_train, seed)
+	fr_str = regressionFr(X_train, y_train, seed,
+		population_size = arguments.population_size,
+		generations = arguments.generations)
 	print("h(t) =", fr_str)
-	for f, expr in fr2fd(fr_str).items():
+	
+#	ax = plt.subplot(111)
+#	t = np.arange(min(X_train)-(max(X_train)-min(X_train))*0.1, max(X_train)+(max(X_train)-min(X_train))*0.1, 0.01)
+#	s1 = np.exp(1*t)
+#	plt.plot(t, s1, lw=2)
+#	font = {'family': 'serif', 'weight': 'normal', 'size': 22}
+#	plt.title(r'$y = e^{kx}$', fontdict=font)
+#	plt.grid(True)
+#	plt.show()
+	
+	results = fr2fd(fr_str)
+	for f, expr in results.items():
 		print(f, "=", expr)
+	sympy.plot(results["h(t)"])
+	sympy.plot(results["f(t)"])
+	sympy.plot(results["F(t)"])
 
 if __name__ == '__main__':
 	main()
