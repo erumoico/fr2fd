@@ -11,7 +11,7 @@
 # ***************************************************************
 
 import argparse
-import os
+import os, sys
 import signal
 import re
 import time, random
@@ -43,10 +43,11 @@ REGEX_NEW_LINE = re.compile(r"""(?:\r\n|[\r\n])""")
 
 replaceNewLine = lambda input_string: REGEX_NEW_LINE.sub(r"""\\n """, input_string)
 
+Coord = collections.namedtuple("Coord", "x y")
+
 import tkinter
 
 class CoordsGetter:
-	Coord = collections.namedtuple("Coord", "x y")
 	
 	def __init__(self):
 		self.width = 600+1
@@ -90,11 +91,11 @@ class CoordsGetter:
 		y = self.canvas.canvasy(event.y)
 		if y >= 0.0:
 			y = 0.0
-		canvas_coord = self.Coord(x, y)
+		canvas_coord = Coord(x, y)
 		
 		x = canvas_coord.x and canvas_coord.x / self.width_scale
 		y = canvas_coord.y and canvas_coord.y / self.height_scale
-		coord = self.Coord(x, y)
+		coord = Coord(x, y)
 		
 		# Definiční obor i obor hodnot je od nuly do nekonečna a žádné dva body nesmí sdílet x-ovou souřadnici
 		if coord.x >= 0.0 and coord.y >= 0.0 and (not self.coords or coord.x > self.coords[-1].x):
@@ -193,8 +194,6 @@ class CoordsGetter:
 		height_sign = self.height_scale // height_scale
 		_drawAxis(self.canvas, height_sign, height_scale, self.height, False)
 
-# ====== MAIN ======
-
 def uniqifyList(seq, order_preserving=False):
 	if order_preserving:
 		seen = set()
@@ -220,23 +219,29 @@ def preparePrng(prng=None, seed=None):
 	
 	return prng
 
-def loadPoints(filename):
-	X_train = []
-	y_train = []
+def loadCoords(filename):
+	coords = []
 	with open(filename, 'r') as fp:
-		fp.readline() # Nastavení pro TinyGp se přeskočí
+		x_coords = set()
 		for line in fp: # Načítají se body
-			coords = line.split()
-			X_train.append(list(map(float, coords[:-1])))
-			y_train.append(float(coords[-1]))
+			values = line.split()
+			if values == 2: # Nastavení pro TinyGp se přeskočí -- má jiný počet hodnot
+				coord = Coord(*map(float, values))
+				if coord.x not in x_coords: # Zabraňuje tomu, aby libovolné dva body sdíleli x-ovou souřadnici
+					x_coords.add(coord.x)
+					coords.append(coord)
+				else:
+					print("Bad coord", coord, "in file", filename, "-->", "skipped", file=sys.stderr)
+	sorted_coords = sorted(coords)
+	if sorted_coords != coords: # Souřadnice by měly být seřazeny dle X-ové souřadnice
+		print("Coords", "in file", filename, "were not sort by X coord --> sorted", file=sys.stderr)
 	
-	return (X_train, y_train)
+	return sorted_coords
 
-def regressionFr(X_train, y_train, seed=None, population_size=None, generations=None):
-	if population_size is None:
-		population_size = 1000
-	if generations is None:
-		generations = 20
+def regressionFr(coords, seed=None, population_size=1000, generations=20):
+	
+	# Rozdělení x-ových a y-ových souřadnic pro GpLearn
+	X_train, y_train = zip(*(([x], y) for (x, y) in coords))
 	
 	from gplearn.genetic import SymbolicRegressor
 	est_gp = SymbolicRegressor(
@@ -287,6 +292,8 @@ def fr2fd(expression):
 	
 	return {"h(t)": fr, "f(t)": fd, "F(t)": uf, "R(t)": rf}
 
+# ====== MAIN ======
+
 def main():
 	
 	# == Abychom věděli co šahá kam nemá ==
@@ -325,6 +332,8 @@ def main():
 	)
 	
 	parser.add_argument("file_with_points",
+		nargs="?",
+		default=None,
 		type=str,
 		help=("Cesta k souboru s body, jenž mají být interpolovány."),
 		metavar="data.txt",
@@ -334,11 +343,20 @@ def main():
 	# == Povolení ladících výpisů ==
 	debug.DEBUG_EN = arguments.debug
 	
+	# == Načtení souřadnic pro symbolickou regresi ==
+	# Není-li zadán soubor s body, pak se souřadnice získají pomocí třídy CoordsGetter
+	if arguments.file_with_points is not None:
+		coords = loadCoords(arguments.file_with_points)
+	else:
+		coords_getter = CoordsGetter()
+		coords = coords_getter.getCoords()
+	print(coords)
+	
 	# == Symbolická regrese za pomocí genetického programování ==
 	seed = arguments.seed % 2**32 # Takto to vyžaduje gplearn.
 	print("seed =", seed)
-	X_train, y_train = loadPoints(arguments.file_with_points)
-	fr_str = regressionFr(X_train, y_train, seed,
+	fr_str = regressionFr(coords,
+		seed = seed,
 		population_size = arguments.population_size,
 		generations = arguments.generations)
 	print("h(t) =", fr_str)
@@ -353,7 +371,7 @@ def main():
 	# == Zobrazení grafů výsledných funkcí pomocí sympy ==
 	t = sympy.symbols('t')
 	for f, expr in results.items():
-		sympy.plot(expr, (t, min(X_train), max(X_train)), title=f, ylabel=f)
+		sympy.plot(expr, (t, coords[0].x, coords[-1].x), title=f, ylabel=f)
 	
 	# == Zobrazení grafů výsledných funkcí pomocí matplotlib.pyplot ==
 #	ax = plt.subplot(111)
