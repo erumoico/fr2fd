@@ -17,7 +17,6 @@ import re
 import time, random
 import collections
 
-#from gplearn.genetic import SymbolicRegressor
 import sympy
 
 #import numpy as np
@@ -290,15 +289,15 @@ def fr2fd(expression):
 
 def main():
 	
-	# Abychom věděli co šahá kam nemá
+	# == Abychom věděli co šahá kam nemá ==
 	signal.signal(signal.SIGSEGV, my_exceptions.signalHandler)
 	
-	# Signály, které ukončují program
+	# == Signály, které ukončují program ==
 	#signal.signal(signal.SIGQUIT, my_exceptions.signalHandler)
 	#signal.signal(signal.SIGTERM, my_exceptions.signalHandler)
 	signal.signal(signal.SIGINT, my_exceptions.signalHandler)
 	
-	# Zpracování parametrů
+	# == Zpracování parametrů ==
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--debug",
 		action = "store_true",
@@ -332,15 +331,10 @@ def main():
 	)
 	arguments = parser.parse_args()
 	
-	# Povolení ladících výpisů
+	# == Povolení ladících výpisů ==
 	debug.DEBUG_EN = arguments.debug
 	
-	w = CoordsGetter()
-	coords = w.getCoords()
-	print(coords)
-	return
-	
-	# == Symbolická regrese za pomocí genetického programování a následná integrace za pomocí symbolického výpočtu ==
+	# == Symbolická regrese za pomocí genetického programování ==
 	seed = arguments.seed % 2**32 # Takto to vyžaduje gplearn.
 	print("seed =", seed)
 	X_train, y_train = loadPoints(arguments.file_with_points)
@@ -349,6 +343,19 @@ def main():
 		generations = arguments.generations)
 	print("h(t) =", fr_str)
 	
+	# == Integrace za pomocí symbolického výpočtu ==
+	results = fr2fd(fr_str)
+	
+	# == Zobrazení výsledných funkcí ==
+	for f, expr in results.items():
+		print(f, "=", expr)
+	
+	# == Zobrazení grafů výsledných funkcí pomocí sympy ==
+	t = sympy.symbols('t')
+	for f, expr in results.items():
+		sympy.plot(expr, (t, min(X_train), max(X_train)), title=f, ylabel=f)
+	
+	# == Zobrazení grafů výsledných funkcí pomocí matplotlib.pyplot ==
 #	ax = plt.subplot(111)
 #	t = np.arange(min(X_train)-(max(X_train)-min(X_train))*0.1, max(X_train)+(max(X_train)-min(X_train))*0.1, 0.01)
 #	s1 = np.exp(1*t)
@@ -357,13 +364,6 @@ def main():
 #	plt.title(r'$y = e^{kx}$', fontdict=font)
 #	plt.grid(True)
 #	plt.show()
-	
-	results = fr2fd(fr_str)
-	for f, expr in results.items():
-		print(f, "=", expr)
-	sympy.plot(results["h(t)"])
-	sympy.plot(results["f(t)"])
-	sympy.plot(results["F(t)"])
 
 if __name__ == '__main__':
 	main()
