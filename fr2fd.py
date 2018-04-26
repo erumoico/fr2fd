@@ -225,7 +225,7 @@ def loadCoords(filename):
 		x_coords = set()
 		for line in fp: # Načítají se body
 			values = line.split()
-			if values == 2: # Nastavení pro TinyGp se přeskočí -- má jiný počet hodnot
+			if len(values) == 2: # Nastavení pro TinyGp se přeskočí -- má jiný počet hodnot
 				coord = Coord(*map(float, values))
 				if coord.x not in x_coords: # Zabraňuje tomu, aby libovolné dva body sdíleli x-ovou souřadnici
 					x_coords.add(coord.x)
@@ -238,7 +238,11 @@ def loadCoords(filename):
 	
 	return sorted_coords
 
-def regressionFr(coords, seed=None, population_size=1000, generations=20):
+def regressionFr(coords, seed=None, population_size=None, generations=None):
+	if population_size is None:
+		population_size = 1000
+	if generations is None:
+		generations = 20
 	
 	# Rozdělení x-ových a y-ových souřadnic pro GpLearn
 	X_train, y_train = zip(*(([x], y) for (x, y) in coords))
