@@ -50,16 +50,22 @@ class CoordsGetter:
 	Coord = collections.namedtuple("Coord", "x y")
 	
 	def __init__(self):
-		self.width = 100
-		self.width_scale = 1
-		self.canvas_width = self.width * self.width_scale
-		self.height = 100
-		self.height_scale = 1
-		self.canvas_height = self.height * self.height_scale
+		self.width = 600+1
+		self.width_scale = 50 # počet pixelů na jednotku na ose x
+		self.height = 400+1
+		self.height_scale = -200 # počet pixelů na jednotku na ose y
+		self.padding = 20
 		
 		self.coords = []
 		self.window = tkinter.Tk(className = "CoordsGetter")
-		self.canvas = tkinter.Canvas(self.window, width = self.canvas_width, height = self.canvas_height)
+		self.canvas = tkinter.Canvas(self.window,
+			width = self.width + self.padding,
+			height = self.height + self.padding,
+			borderwidth = 0,
+			xscrollincrement = 1,
+			yscrollincrement = 1,
+		)
+		self.canvas.scan_dragto(1 + self.padding, self.height, gain=1)
 		self.canvas.pack()
 		
 		# Nastavení událostí na tlačítka
@@ -69,7 +75,7 @@ class CoordsGetter:
 		self.window.protocol('WM_DELETE_WINDOW', self.close)
 		
 		# Vykreslení souřadné osy
-		self.drawAxis()
+		self.drawAxes()
 	
 	def getCoords(self):
 		# Čekání ve smyčce
@@ -79,15 +85,25 @@ class CoordsGetter:
 		return self.coords
 	
 	def pushCoord(self, event):
-		event_coord = self.Coord(event.x, event.y)
-		x = event_coord.x // self.width_scale
-		y = event_coord.y // self.height_scale
-		coord = self.Coord(x, y)
-		self.coords.append(coord)
-		print("Pushed", coord)
+		x = self.canvas.canvasx(event.x)
+		if x <= 0.0:
+			x = 0.0
+		y = self.canvas.canvasy(event.y)
+		if y >= 0.0:
+			y = 0.0
+		canvas_coord = self.Coord(x, y)
 		
-		# Vykreslení křížku
-		self.drawCross(event_coord, tag=coord)
+		x = canvas_coord.x and canvas_coord.x / self.width_scale
+		y = canvas_coord.y and canvas_coord.y / self.height_scale
+		coord = self.Coord(x, y)
+		
+		# Definiční obor i obor hodnot je od nuly do nekonečna a žádné dva body nesmí sdílet x-ovou souřadnici
+		if coord.x >= 0.0 and coord.y >= 0.0 and (not self.coords or coord.x > self.coords[-1].x):
+			self.coords.append(coord)
+			print("Pushed", coord)
+			
+			# Vykreslení křížku
+			self.drawCross(canvas_coord, tag=coord)
 	
 	def popCoord(self, event=None):
 		if self.coords:
@@ -101,22 +117,82 @@ class CoordsGetter:
 	def close(self, event=None):
 		self.window.destroy()
 	
-	def drawCross(self, coord, tag=None, cross_length = 2):
+	def drawCross(self, coord, tag=None, cross_length = 3):
 		"""
 		Vykreslení křížku
 		"""
-		first_line = self.canvas.create_line(coord.x - cross_length, coord.y - cross_length, coord.x + (cross_length+1), coord.y + (cross_length+1))
-		second_line = self.canvas.create_line(coord.x - cross_length, coord.y + cross_length, coord.x + (cross_length+1), coord.y - (cross_length+1))
+		first_line = self.canvas.create_line(coord.x - cross_length, coord.y - cross_length, coord.x + cross_length, coord.y + cross_length, capstyle = tkinter.PROJECTING)
+		second_line = self.canvas.create_line(coord.x - cross_length, coord.y + cross_length, coord.x + cross_length, coord.y - cross_length, capstyle = tkinter.PROJECTING)
 		if tag is not None:
 			self.canvas.addtag_withtag(tag, first_line)
 			self.canvas.addtag_withtag(tag, second_line)
 	
-	def drawAxis(self):
+	def drawAxes(self):
 		"""
 		Vykreslení souřadné osy
 		"""
-		self.canvas.create_line(0, 0, 0, self.canvas_height, dash=(2,2))
-		self.canvas.create_line(0, 0, self.canvas_width, 0, dash=(2,2))
+		# Vykreslení osy x
+		self.canvas.create_line(-self.padding, 0, self.width, 0, dash=(2, 2), fill='gray')
+		
+		# Vykreslení osy y
+		self.canvas.create_line(0, self.padding, 0, -self.height, dash=(2, 2), fill='gray')
+		
+		# Vykreslení hodnoty nula
+		self.canvas.create_text(-4, 4, text=str(0), anchor=tkinter.NE)
+		
+		# Definice pomocné funkce pro tisk osy
+		def _drawAxis(canvas, sign, scale, length, draw_x):
+			comma_major = 4
+			comma_minor = 2
+			if scale < 25:
+				major = 50 // scale
+				for d in (5, 2, 1):
+					if major % d == 0:
+						minor = major // d
+						break
+				minor *= scale
+				major *= scale
+			else:
+				major = 1
+				if scale < 50:
+					possible_minors = (5, 2, 1)
+				else:
+					possible_minors = (10, 5, 2, 1)
+				for d in possible_minors:
+					if scale % d == 0:
+						minor = d
+						break
+				minor = scale // minor
+				major = scale
+			for x in range(minor, length, minor):
+				if x % major == 0:
+					x *= sign
+					y = comma_major
+					if draw_x:
+						canvas.create_line(x, y, x, -y, fill='gray', capstyle = tkinter.PROJECTING)
+						canvas.create_text(x, y, text=str(x*sign // scale), anchor=tkinter.N)
+					else:
+						x, y = y, x
+						canvas.create_line(-x, y, x, y, fill='gray', capstyle = tkinter.PROJECTING)
+						canvas.create_text(-x, y, text=str(y*sign // scale), anchor=tkinter.E)
+				else:
+					x *= sign
+					y = comma_minor
+					if draw_x:
+						canvas.create_line(x, y, x, -y, fill='gray', capstyle = tkinter.PROJECTING)
+					else:
+						x, y = y, x
+						canvas.create_line(-x, y, x, y, fill='gray', capstyle = tkinter.PROJECTING)
+		
+		# Vykreslení hodnot na ose x
+		width_scale = abs(self.width_scale)
+		width_sign = self.width_scale // width_scale
+		_drawAxis(self.canvas, width_sign, width_scale, self.width, True)
+		
+		# Vykreslení hodnot na ose y
+		height_scale = abs(self.height_scale)
+		height_sign = self.height_scale // height_scale
+		_drawAxis(self.canvas, height_sign, height_scale, self.height, False)
 
 # ====== MAIN ======
 
@@ -258,6 +334,11 @@ def main():
 	
 	# Povolení ladících výpisů
 	debug.DEBUG_EN = arguments.debug
+	
+	w = CoordsGetter()
+	coords = w.getCoords()
+	print(coords)
+	return
 	
 	# == Symbolická regrese za pomocí genetického programování a následná integrace za pomocí symbolického výpočtu ==
 	seed = arguments.seed % 2**32 # Takto to vyžaduje gplearn.
