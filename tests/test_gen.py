@@ -10,79 +10,96 @@
 # *          vlastnostmi (konzultace: J. Strnadel, L332)        *
 # ***************************************************************
 
+import sys
+from math import exp
+import contextlib
+
 NVAR = 1
 NRAND = 100
 MINRAND = -5
 MAXRAND = 5
 NFITCASES = 60
 
-print(NVAR, NRAND, MINRAND, MAXRAND, NFITCASES+10)
+@contextlib.contextmanager
+def smartOpenToWrite(filename=None):
+    if filename is not None:
+        fp = open(filename, 'w')
+    else:
+        fp = sys.stdout
 
-from math import exp
+    try:
+        yield fp
+    finally:
+        if fp is not sys.stdout:
+            fp.close()
+
+def generateTest(f, nfitcases=NFITCASES, filename=None, start=0, step=0.1):
+	with smartOpenToWrite(filename) as fp:
+		print(NVAR, NRAND, MINRAND, MAXRAND, nfitcases+10, file=fp)
+		
+		x = start
+		for n in range(NFITCASES):
+			if n == 0:
+				for m in range(10):
+					print("", x, round(f(x), 10), file=fp)
+					x = round(x + step/10, 3)
+			print("", x, round(f(x), 10), file=fp)
+			x = round(x + step, 3)
 
 # ===== Konstantní fce =====
-f = lambda x: 0.1 # X~Exp(0.1)
-f = lambda x: 0.5 # X~Exp(0.5)
-f = lambda x: 1.0 # X~Exp(1.0)
-f = lambda x: 2.0 # X~Exp(2.0)
-f = lambda x: 10.0 # X~Exp(10.0)
+generateTest(lambda x: 0.1, filename="const_X~Exp(0.1)_data.txt")
+generateTest(lambda x: 0.5, filename="const_X~Exp(0.5)_data.txt")
+generateTest(lambda x: 1.0, filename="const_X~Exp(1.0)_data.txt")
+generateTest(lambda x: 2.0, filename="const_X~Exp(2.0)_data.txt")
+generateTest(lambda x: 10.0, filename="const_X~Exp(10.0)_data.txt")
 
 # ===== Lineární fce - dobré =====
-f = lambda x: 0.1*x
-f = lambda x: 0.2*x+0.1
-f = lambda x: 0.5*x+1
-f = lambda x: x
+generateTest(lambda x: 0.1*x, filename="lin_0.1*x_data.txt")
+generateTest(lambda x: 0.2*x+0.1, filename="lin_0.2*x+0.1_data.txt")
+generateTest(lambda x: 0.5*x+1, filename="lin_0.5*x+1_data.txt")
+generateTest(lambda x: x, filename="lin_x_data.txt")
 
 # ===== Lineární fce - špatné =====
-f = lambda x: -0.5*x+1
-f = lambda x: 0.1*x-1
-f = lambda x: 0.5*x-1
+generateTest(lambda x: -0.5*x+1, filename="lin_bad_-0.5*x+1_data.txt")
+generateTest(lambda x: 0.1*x-1, filename="lin_bad_0.1*x-1_data.txt")
+generateTest(lambda x: 0.5*x-1, filename="lin_bad_0.5*x-1_data.txt")
 
 # ===== Kvadratické fce =====
-f = lambda x: x**2
+generateTest(lambda x: x**2, filename="kvadr_x**2_data.txt")
 
 # ===== Kubické fce =====
-f = lambda x: x**3
+generateTest(lambda x: x**3, filename="kub_x**3_data.txt")
 
 # ===== Exponenciálně rostoucí fce =====
-f = lambda x: 2**(x) # 2**x
-f = lambda x: exp(x) # e**x
-f = lambda x: exp(x)*0.1 # (e**x)*0.1
-f = lambda x: exp(x*0.5)-1 # e**(x*0.5)-1
-f = lambda x: exp(x*0.2)-1 # e**(x*0.2)-1
+generateTest(lambda x: 2**(x), filename="exp_grow_2**x_data.txt")
+generateTest(lambda x: exp(x), filename="exp_grow_e**x_data.txt")
+generateTest(lambda x: exp(x)*0.1, filename="exp_grow_(e**x)*0.1_data.txt")
+generateTest(lambda x: exp(x*0.5)-1, filename="exp_grow_e**(x*0.5)-1_data.txt")
+generateTest(lambda x: exp(x*0.2)-1, filename="exp_grow_e**(x*0.2)-1_data.txt")
 
 # ===== Exponenciálně klesající fce =====
-f = lambda x: 2**(-x) # 2**-x
-f = lambda x: exp(-x) # e**-x
-f = lambda x: exp(-x)*0.5 # (e**-x)*0.5
-f = lambda x: exp(-x*0.5) # e**(-x*0.5)
-f = lambda x: exp(-x*0.2) # e**(-x*0.2)
+generateTest(lambda x: 2**(-x), filename="exp_drop_2**-x_data.txt")
+generateTest(lambda x: exp(-x), filename="exp_drop_e**-x_data.txt")
+generateTest(lambda x: exp(-x)*0.5, filename="exp_drop_(e**-x)*0.5_data.txt")
+generateTest(lambda x: exp(-x*0.5), filename="exp_drop_e**(-x*0.5)_data.txt")
+generateTest(lambda x: exp(-x*0.2), filename="exp_drop_e**(-x*0.2)_data.txt")
 
 # ===== Exponenciálně zběsilé fce =====
-f = lambda x: x**(x) # x**x
-f = lambda x: x**(-x) # x**-x
-f = lambda x: exp(x)*x # (e**x)*x
-f = lambda x: exp(-x)*x # (e**-x)*x
-f = lambda x: exp(x*x) # e**(x*x)
-f = lambda x: exp(-x*x) # e**(-x*x) -- Gaussovka
-f = lambda x: exp(-(x-3)*(x-3)) # e**(-(x-3)*(x-3)) -- posunutá Gaussovka s maximem v x=3
+generateTest(lambda x: x**(x), filename="exp_x**x_data.txt")
+generateTest(lambda x: x**(-x), filename="exp_x**-x_data.txt")
+generateTest(lambda x: exp(x)*x, filename="exp_(e**x)*x_data.txt")
+generateTest(lambda x: exp(-x)*x, filename="exp_(e**-x)*x_data.txt")
+generateTest(lambda x: exp(x*x), filename="exp_e**(x*x)_data.txt")
+generateTest(lambda x: exp(-x*x), filename="gauss_e**(-x*x)_data.txt") # Gaussovka
+generateTest(lambda x: exp(-(x-3)*(x-3)), filename="gauss_e**(-(x-3)*(x-3))_data.txt") # posunutá Gaussovka s maximem v x=3
 
 # ===== Fce tvaru vanové křivky =====
 # http://www.sys-ev.com/reliability01.htm
 bathtub1 = lambda t, k, beta, a1: k * beta * t**(beta-1) * exp(a1*t) # λ(t) = k*β*t^(β-1) * exp(a1*t), kde 0 < a1 && 0 < β < 1
 bathtub2 = lambda t, k, beta, a1: k * t**(beta) * a1 * exp(a1*t) # λ(t) = k*t^β*a1 * exp(a1*t), kde 0 < a1 && -1 < β < 0
-f = lambda t: bathtub1(t, 1, 0.1, 0.9) # bathtub1(t,k=1,b=0.1,a=0.9)
-f = lambda t: bathtub2(t, 0.5, -0.9, 0.7) # bathtub2(t,k=0.5,b=-0.9,a=0.7)
-f = lambda t: bathtub1(t, 0.5, 0.1, 0.9) # bathtub1(t,k=0.5,b=0.1,a=0.9)
-f = lambda x: exp(x)/(x+0.01) # bathtub_div(exp(x),(x+0.01))
-
-x1 = 0.01
-for n in range(NFITCASES):
-	if n == 0:
-		for m in range(10):
-			print("", x1, round(f(x1), 10))
-			x1 = round(x1 + 0.01, 3)
-	print("", x1, round(f(x1), 10))
-	x1 = round(x1 + 0.1, 3)
+generateTest(lambda t: bathtub1(t, 1, 0.1, 0.9), start=0.01, filename="bathtub1(t,k=1,b=0.1,a=0.9)_data.txt")
+generateTest(lambda t: bathtub2(t, 0.5, -0.9, 0.7), start=0.01, filename="bathtub2(t,k=0.5,b=-0.9,a=0.7)_data.txt")
+generateTest(lambda t: bathtub1(t, 0.5, 0.1, 0.9), start=0.01, filename="bathtub1(t,k=0.5,b=0.1,a=0.9)_data.txt")
+generateTest(lambda x: exp(x)/(x+0.01), filename="bathtub_div(exp(x),(x+0.01))_data.txt")
 
 # konec souboru fr2fd.py
