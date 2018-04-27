@@ -162,16 +162,16 @@ class CoordsGetter:
 		Vykreslení souřadné osy
 		"""
 		# Vykreslení osy x
-		self.canvas.create_line(-self.padding, 0, self.width, 0, dash=(2, 2), fill='gray')
+		self.canvas.create_line(-self.padding, 0, self.width, 0, fill='gray')
 		
 		# Vykreslení osy y
-		self.canvas.create_line(0, self.padding, 0, -self.height, dash=(2, 2), fill='gray')
+		self.canvas.create_line(0, self.padding, 0, -self.height, fill='gray')
 		
 		# Vykreslení hodnoty nula
 		self.canvas.create_text(-4, 4, text=str(0), anchor=tkinter.NE)
 		
 		# Definice pomocné funkce pro tisk osy
-		def _drawAxis(canvas, sign, scale, length, draw_x):
+		def _drawAxis(canvas, sign, scale, length, draw_x, width, height):
 			comma_major = 4
 			comma_minor = 2
 			if scale < 25:
@@ -201,28 +201,32 @@ class CoordsGetter:
 					if draw_x:
 						canvas.create_line(x, y, x, -y, fill='gray', capstyle = tkinter.PROJECTING)
 						canvas.create_text(x, y, text=str(x*sign // scale), anchor=tkinter.N)
+						canvas.create_line(x, 0, x, -height, dash=(4, 4), fill='gray') # Pro vykreslení mřížky
 					else:
 						x, y = y, x
 						canvas.create_line(-x, y, x, y, fill='gray', capstyle = tkinter.PROJECTING)
 						canvas.create_text(-x, y, text=str(y*sign // scale), anchor=tkinter.E)
+						canvas.create_line(0, y, width, y, dash=(4, 4), fill='gray') # Pro vykreslení mřížky
 				else:
 					x *= sign
 					y = comma_minor
 					if draw_x:
 						canvas.create_line(x, y, x, -y, fill='gray', capstyle = tkinter.PROJECTING)
+						canvas.create_line(x, 0, x, -height, dash=(1, 3), fill='gray') # Pro vykreslení mřížky # TODO: Tečky pouze tam, kde se střetávají comma_minor X a Y.
 					else:
 						x, y = y, x
 						canvas.create_line(-x, y, x, y, fill='gray', capstyle = tkinter.PROJECTING)
+						canvas.create_line(0, y, width, y, dash=(1, 3), fill='gray') # Pro vykreslení mřížky
 		
 		# Vykreslení hodnot na ose x
 		width_scale = abs(self.width_scale)
 		width_sign = self.width_scale // width_scale
-		_drawAxis(self.canvas, width_sign, width_scale, self.width, True)
+		_drawAxis(self.canvas, width_sign, width_scale, self.width, True, self.width, self.height)
 		
 		# Vykreslení hodnot na ose y
 		height_scale = abs(self.height_scale)
 		height_sign = self.height_scale // height_scale
-		_drawAxis(self.canvas, height_sign, height_scale, self.height, False)
+		_drawAxis(self.canvas, height_sign, height_scale, self.height, False, self.width, self.height)
 
 def uniqifyList(seq, order_preserving=False):
 	if order_preserving:
