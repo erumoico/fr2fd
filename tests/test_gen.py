@@ -21,20 +21,27 @@ MAXRAND = 5
 NFITCASES = 60
 
 @contextlib.contextmanager
-def smartOpenToWrite(filename=None):
-    if filename is not None:
-        fp = open(filename, 'w')
-    else:
-        fp = sys.stdout
+def smartOpen(filename, mode="r"):
+	if filename == "-":
+		if "r" in mode:
+			fp = sys.stdin
+		else:
+			fp = sys.stdout
+	else:
+		fp = open(filename, mode)
+	
+	try:
+		yield fp
+	finally:
+		if filename != "-":
+			fp.close()
 
-    try:
-        yield fp
-    finally:
-        if fp is not sys.stdout:
-            fp.close()
-
-def generateTest(f, nfitcases=NFITCASES, filename=None, start=0, step=0.1):
-	with smartOpenToWrite(filename) as fp:
+def generateTest(f, nfitcases=NFITCASES, filename="-", start=0, step=0.1):
+	"""
+	Uloží ve formátu pro TinyGp
+	"""
+	
+	with smartOpen(filename, "w") as fp:
 		print(NVAR, NRAND, MINRAND, MAXRAND, nfitcases+10, file=fp)
 		
 		x = start

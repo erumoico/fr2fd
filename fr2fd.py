@@ -16,6 +16,7 @@ import signal
 import re
 import time, random
 import collections
+import contextlib
 
 import sympy
 
@@ -39,6 +40,8 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 REGEX_NEW_LINE = re.compile(r"""(?:\r\n|[\r\n])""")
 
+DEFAULT_FILE_SAVE_POINTS = "data.txt"
+
 # ====== FUNKCE A TŘÍDY ======
 
 replaceNewLine = lambda input_string: REGEX_NEW_LINE.sub(r"""\\n """, input_string)
@@ -49,7 +52,9 @@ import tkinter
 
 class CoordsGetter:
 	
-	def __init__(self):
+	def __init__(self, verbose=True):
+		self.verbose = verbose
+		
 		self.width = 600+1
 		self.width_scale = 50 # počet pixelů na jednotku na ose x
 		self.height = 400+1
@@ -69,10 +74,12 @@ class CoordsGetter:
 		self.canvas.pack()
 		
 		# Nastavení událostí na tlačítka
+		# TODO: <Escape>: clean, <S>: save
+		# TODO: V pravém horním rohu vykresvat aktuální platné souřadnice kurzoru myši.
 		self.canvas.bind("<Button-1>", self.pushCoord)
 		self.window.bind('<BackSpace>', self.popCoord)
-		self.window.bind('<Return>', self.close)
-		self.window.protocol('WM_DELETE_WINDOW', self.close)
+		self.window.bind('<Return>', self.saveAndClose)
+		self.window.protocol('WM_DELETE_WINDOW', self.saveAndClose)
 		
 		# Vykreslení souřadné osy
 		self.drawAxes()
@@ -100,7 +107,8 @@ class CoordsGetter:
 		# Definiční obor i obor hodnot je od nuly do nekonečna a žádné dva body nesmí sdílet x-ovou souřadnici
 		if coord.x >= 0.0 and coord.y >= 0.0 and (not self.coords or coord.x > self.coords[-1].x):
 			self.coords.append(coord)
-			print("Pushed", coord)
+			if self.verbose:
+				print("Pushed", coord)
 			
 			# Vykreslení křížku
 			self.drawCross(canvas_coord, tag=coord)
@@ -108,14 +116,36 @@ class CoordsGetter:
 	def popCoord(self, event=None):
 		if self.coords:
 			coord = self.coords.pop()
-			print("Popped", coord)
+			if self.verbose:
+				print("Popped", coord)
 			
 			self.canvas.delete(coord)
 		else:
-			print("Nothing to pop.")
+			if self.verbose:
+				print("Nothing to pop.")
+	
+	def save(self, event=None):
+		"""
+		Uloží ve formátu pro TinyGp
+		"""
+		filename = DEFAULT_FILE_SAVE_POINTS
+		
+		NVAR = 1
+		NRAND = 100
+		MINRAND = -5
+		MAXRAND = 5
+		
+		with smartOpen(filename, "w") as fp:
+			print(NVAR, NRAND, MINRAND, MAXRAND, len(self.coords), file=fp)
+			for coord in self.coords:
+				print("", coord.x, coord.y, file=fp)
 	
 	def close(self, event=None):
 		self.window.destroy()
+	
+	def saveAndClose(self, event=None):
+		self.save(event)
+		self.close(event)
 	
 	def drawCross(self, coord, tag=None, cross_length = 3):
 		"""
@@ -219,9 +249,25 @@ def preparePrng(prng=None, seed=None):
 	
 	return prng
 
+@contextlib.contextmanager
+def smartOpen(filename, mode="r"):
+	if filename == "-":
+		if "r" in mode:
+			fp = sys.stdin
+		else:
+			fp = sys.stdout
+	else:
+		fp = open(filename, mode)
+	
+	try:
+		yield fp
+	finally:
+		if filename != "-":
+			fp.close()
+
 def loadCoords(filename):
 	coords = []
-	with open(filename, 'r') as fp:
+	with smartOpen(filename) as fp:
 		x_coords = set()
 		for line in fp: # Načítají se body
 			values = line.split()
@@ -339,8 +385,13 @@ def main():
 		nargs="?",
 		default=None,
 		type=str,
-		help=("Cesta k souboru s body, jenž mají být interpolovány."),
-		metavar="data.txt",
+		help=("Cesta k souboru s body, jenž mají být interpolovány. "
+			"Je-li zadáno \"-\", čte se ze stdin. "
+			"Není-li zadán soubor s body, pak se souřadnice získají od uživatele naklikáním do grafu. "
+			"Levé tlačítko myši <LMB> přidá bod, <BackSpace> odebere poslední přidaný, <Enter> uloží a ukončí. "
+			"Body jsou uloženy do souboru \"%s\". Existuje-li, přepíše se." % DEFAULT_FILE_SAVE_POINTS
+		),
+		metavar=DEFAULT_FILE_SAVE_POINTS,
 	)
 	arguments = parser.parse_args()
 	
