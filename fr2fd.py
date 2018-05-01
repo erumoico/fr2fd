@@ -20,8 +20,8 @@ import contextlib
 
 import sympy
 
-#import numpy as np
-#import matplotlib.pyplot as plt
+import numpy as np
+import matplotlib.pyplot as plt
 
 # Pro debugování:
 import debug
@@ -41,6 +41,8 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REGEX_NEW_LINE = re.compile(r"""(?:\r\n|[\r\n])""")
 
 DEFAULT_FILE_SAVE_POINTS = "data.txt"
+
+EXPERIMENTAL_EN = True
 
 # ====== FUNKCE A TŘÍDY ======
 
@@ -298,7 +300,7 @@ def regressionFr(coords, seed=None, population_size=None, generations=None):
 	X_train, y_train = zip(*(([x], y) for (x, y) in coords))
 	
 	from gplearn.genetic import SymbolicRegressor
-	est_gp = SymbolicRegressor(
+	est_gp = SymbolicRegressor( # FIXME: Kolik náhodných čísel to vygeneruje?
 		population_size=population_size, generations=generations, tournament_size=20, stopping_criteria=0.0,
 		const_range=(-5.0, 5.0), init_depth=(2, 6), init_method='half and half',
 		function_set=('add', 'sub', 'mul', 'div'), metric='mean absolute error',
@@ -307,7 +309,7 @@ def regressionFr(coords, seed=None, population_size=None, generations=None):
 		warm_start=False, n_jobs=-1, verbose=1, random_state=seed
 	)
 	est_gp.fit(X_train, y_train)
-	return est_gp._program
+	return est_gp, est_gp._program
 
 def fr2fd(expression):
 	from sympy import symbols, Add, Mul, Lambda, exp, integrate, sympify
@@ -325,6 +327,11 @@ def fr2fd(expression):
 					return x/y
 			elif x.is_Symbol and x is y:
 				return S.One
+			elif EXPERIMENTAL_EN: # Právě jsem si uvědomil, že není možné dělit proměnnou, jenž jistě bude nabývat hodnoty nula.
+				if y.is_Symbol:
+					return S.One
+				else:
+					return x/y
 	
 	x, y = symbols('x y')
 	t = symbols("t")
@@ -332,7 +339,7 @@ def fr2fd(expression):
 		"add": Add,
 		"mul": Mul,
 		"sub": Lambda((x, y), x - y),
-		"div": gplearnDiv,
+		"div": Lambda((x, y), x / y),
 		"X0": t
 	}
 	fr = sympify(expression, locals=locals, evaluate=False) # h(t) nebo-li λ(t)
@@ -414,7 +421,7 @@ def main():
 	# == Symbolická regrese za pomocí genetického programování ==
 	seed = arguments.seed % 2**32 # Takto to vyžaduje gplearn.
 	print("seed =", seed)
-	fr_str = regressionFr(coords,
+	fr, fr_str = regressionFr(coords,
 		seed = seed,
 		population_size = arguments.population_size,
 		generations = arguments.generations)
@@ -428,19 +435,43 @@ def main():
 		print(f, "=", expr)
 	
 	# == Zobrazení grafů výsledných funkcí pomocí sympy ==
+	
 	t = sympy.symbols('t')
-	for f, expr in results.items():
-		sympy.plot(expr, (t, coords[0].x, coords[-1].x), title=f, ylabel=f)
+	min_x = coords[0].x
+	max_x = coords[-1].x
+	
+	#regrese 10% na každou stranu
+	range_min_x = min_x - (max_x - min_x)*0.1
+	if range_min_x < 0:
+		range_min_x = 0
+	range_max_x = max_x + (max_x - min_x)*0.1
+#	with plt.style.context(("default")):
+#		for f, expr in results.items():
+#			sympy.plot(expr, (t, range_min_x, range_max_x), title=f, ylabel=f, axis=True)
 	
 	# == Zobrazení grafů výsledných funkcí pomocí matplotlib.pyplot ==
-#	ax = plt.subplot(111)
-#	t = np.arange(min(X_train)-(max(X_train)-min(X_train))*0.1, max(X_train)+(max(X_train)-min(X_train))*0.1, 0.01)
-#	s1 = np.exp(1*t)
-#	plt.plot(t, s1, lw=2)
-#	font = {'family': 'serif', 'weight': 'normal', 'size': 22}
-#	plt.title(r'$y = e^{kx}$', fontdict=font)
-#	plt.grid(True)
-#	plt.show()
+	plt.subplot(111)
+	
+	# tisk vstupních bodů
+	input_x, input_y = zip(*coords)
+	plt.plot(input_x, input_y, color='black', marker='x', linestyle="")
+	
+	# příprava x-ových souřadnic pro vykreslení grafů
+	x = np.arange(range_min_x, range_max_x, 0.01)
+	
+	# tisk gplearn.predict h(t)
+	y = fr.predict(np.c_[x])
+	plt.plot(x, y, linewidth=2)
+	
+	# tisk sympy h(t)
+	h = sympy.lambdify(t, results["h(t)"], "numpy")
+	y = h(x)
+	plt.plot(x, y, linewidth=2, linestyle="--")
+	
+	font = {'family': 'serif', 'weight': 'normal', 'size': 22}
+	plt.title(r'$h(t)$', fontdict=font)
+	plt.grid(True)
+	plt.show()
 
 if __name__ == '__main__':
 	main()
