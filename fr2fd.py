@@ -340,7 +340,6 @@ def regressionFr(coords, seed=None, population_size=None, generations=None):
 
 def fr2fd(expression):
 	from sympy import symbols, Function, Add, Mul, Lambda, exp, integrate, sympify
-	#from sympy.parsing.sympy_parser import parse_expr as sympy_parse_expr
 	
 	# gplearn 'div' : protected division where a denominator near-zero returns 1.
 	gplearnDiv = Function("gplearnDiv")
@@ -351,12 +350,10 @@ def fr2fd(expression):
 		"add": Add,
 		"mul": Mul,
 		"sub": Lambda((x, y), x - y),
-#		"div": Lambda((x, y), x / y),
 		"div": gplearnDiv,
 		"X0": t
 	}
 	fr = sympify(expression, locals=locals, evaluate=False) # h(t) nebo-li λ(t)
-	#fr = sympy_parse_expr(expression, local_dict=locals, evaluate=False) # h(t) nebo-li λ(t)
 	x = symbols('x', real=True)
 	rf = exp(-integrate(fr, (x, 0, t))) # R(t) = exp(-integrate(h(x),x,0,t))
 	fd = fr * rf # f(t) = h(t)*R(t) = h(t)*exp(-integrate(h(x),x,0,t))
@@ -465,8 +462,6 @@ def main():
 	if range_min_x < 0:
 		range_min_x = 0
 	range_max_x = max_x + (max_x - min_x)*0.1
-#	range_min_x = -2.1
-#	range_max_x = -2.0
 	
 	# vytvoření x-ových souřadnic
 	x = np.arange(range_min_x, range_max_x, 0.01)
@@ -482,7 +477,6 @@ def main():
 	t = sympy.symbols("t", negative=False, real=True)
 	
 	# vytvoření y-ových souřadnic pomocí sympy.lambdify h(t)
-#	h = sympy.lambdify(t, results["h(t)"], "numpy")
 	h = sympy.lambdify(t, results["h(t)"], [{"gplearnDiv": gplearn.functions.div2}, "numpy"])
 	y = h(x)
 	plt.plot(x, y, linewidth=2, linestyle="--")
