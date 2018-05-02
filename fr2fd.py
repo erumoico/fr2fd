@@ -453,12 +453,12 @@ def main():
 		print(f+"(t)", "=", results[f])
 	
 	# == Zobrazení grafů výsledných funkcí pomocí matplotlib.pyplot as plt ==
-	plt.figure(1)
-	plt.subplot(131)
+	fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+	fig.subplots_adjust(left=0.2, wspace=0.6)
 	
 	# vykreslení vstupních bodů
 	input_x, input_y = zip(*coords)
-	plt.plot(input_x, input_y, color='black', marker='x', linestyle="")
+	ax1.plot(input_x, input_y, color='black', marker='x', linestyle="")
 	
 	# = příprava x-ových souřadnic pro vykreslení grafů =
 	min_x = coords[0].x # minimální x-ová souřadnice
@@ -476,32 +476,45 @@ def main():
 	# = vykreslení fce h(t) =
 	# vytvoření y-ových souřadnic pomocí gplearn.predict h(t)
 	y = fr.predict(np.c_[x])
-	plt.plot(x, y, linewidth=2)
+	ax1.plot(x, y, linewidth=2)
 	print(fr._program.export_graphviz(), file=sys.stderr) # tisk kódu pro vykreslení nalezeného stromu
 	
 	# vytvoření y-ových souřadnic pomocí sympy.lambdify h(t)
 	y = results["h(t)"](x)
-	plt.plot(x, y, linewidth=2, linestyle="--")
+	ax1.plot(x, y, linewidth=2, linestyle="--")
 	
-	font = {'family': 'serif', 'weight': 'normal', 'size': 22}
-	plt.title(r'$\mathsf{\lambda}(t)$', fontdict=font)
-	plt.grid(True)
+	font = {'family': 'sans-serif'}
+	ylabel = r'$\mathsf{\lambda}(t)$'
+#	title = r'Failure Rate'
+	title = r'Intenzita poruch'
+	ax1.set_title(" ".join((title, ylabel)), fontdict=font)
+	ax1.set_ylabel(ylabel, fontdict=font)
+	ax1.grid(True)
 	
 	# = vykreslení fce f(t) =
-	plt.subplot(132)
 	# vytvoření y-ových souřadnic pomocí sympy.lambdify f(t)
 	y = results["f(t)"](x)
-	plt.plot(x, y, linewidth=2)
-	plt.title(r'$\mathsf{f}(t)$', fontdict=font)
-	plt.grid(True)
+	ax2.plot(x, y, linewidth=2)
+	ylabel = r'$\mathsf{f}(t)$'
+#	title = r'Failure Density'
+	title = r'Hustota pravděpodobnosti poruchy'
+	ax2.set_title(" ".join((title, ylabel)), fontdict=font)
+	ax2.set_ylabel(ylabel, fontdict=font)
+	ax2.grid(True)
 	
 	# = vykreslení fce F(t) =
-	plt.subplot(133)
 	# vytvoření y-ových souřadnic pomocí sympy.lambdify F(t)
 	y = results["F(t)"](x)
-	plt.plot(x, y, linewidth=2)
-	plt.title(r'$\mathsf{F}(t)$', fontdict=font)
-	plt.grid(True)
+	ax3.plot(x, y, linewidth=2)
+	ylabel = r'$\mathsf{F}(t)$'
+#	title = r'Unreliability Function'
+	title = r'Pravděpodobnost poruchy'
+	ax3.set_title(" ".join((title, ylabel)), fontdict=font)
+	ax3.set_ylabel(ylabel, fontdict=font)
+	ax3.set_xlabel(r'$t$', fontdict=font)
+	ax3.grid(True)
+	
+	plt.subplots_adjust(top=0.92, bottom=0.10, left=0.10, right=0.95, hspace=0.25,wspace=0.35)
 	
 	# uložení grafu
 	if arguments.file_with_points is not None:
