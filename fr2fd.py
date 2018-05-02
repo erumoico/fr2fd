@@ -472,7 +472,6 @@ def main():
 	
 	# vytvoření x-ových souřadnic
 	x = np.arange(range_min_x, range_max_x, 0.01)
-	x = np.arange(range_min_x, range_max_x, 0.001)
 	
 	# = vykreslení fce h(t) =
 	# vytvoření y-ových souřadnic pomocí gplearn.predict h(t)
