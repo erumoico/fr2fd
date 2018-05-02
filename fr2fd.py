@@ -454,7 +454,7 @@ def main():
 	
 	# == Zobrazení grafů výsledných funkcí pomocí matplotlib.pyplot as plt ==
 	plt.figure(1)
-	plt.subplot(111)
+	plt.subplot(131)
 	
 	# vykreslení vstupních bodů
 	input_x, input_y = zip(*coords)
@@ -485,7 +485,22 @@ def main():
 	
 	font = {'family': 'serif', 'weight': 'normal', 'size': 22}
 	plt.title(r'$\mathsf{\lambda}(t)$', fontdict=font)
-	plt.xlabel("t")
+	plt.grid(True)
+	
+	# = vykreslení fce f(t) =
+	plt.subplot(132)
+	# vytvoření y-ových souřadnic pomocí sympy.lambdify f(t)
+	y = results["f(t)"](x)
+	plt.plot(x, y, linewidth=2)
+	plt.title(r'$\mathsf{f}(t)$', fontdict=font)
+	plt.grid(True)
+	
+	# = vykreslení fce F(t) =
+	plt.subplot(133)
+	# vytvoření y-ových souřadnic pomocí sympy.lambdify F(t)
+	y = results["F(t)"](x)
+	plt.plot(x, y, linewidth=2)
+	plt.title(r'$\mathsf{F}(t)$', fontdict=font)
 	plt.grid(True)
 	
 	# uložení grafu
