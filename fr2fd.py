@@ -335,7 +335,8 @@ def regressionFr(coords, seed=None, population_size=None, generations=None):
 		warm_start=False, n_jobs=-1, verbose=1, random_state=seed
 	)
 	est_gp.fit(X_train, y_train)
-	return est_gp, extractExprFromGplearn(est_gp._program)
+	best_individual = est_gp._program
+	return est_gp, extractExprFromGplearn(best_individual.program)
 
 def fr2fd(expression):
 	from sympy import symbols, Function, Add, Mul, Lambda, exp, integrate, sympify
@@ -464,8 +465,8 @@ def main():
 	if range_min_x < 0:
 		range_min_x = 0
 	range_max_x = max_x + (max_x - min_x)*0.1
-	range_min_x = -2.1
-	range_max_x = -2.0
+#	range_min_x = -2.1
+#	range_max_x = -2.0
 	
 	# vytvoření x-ových souřadnic
 	x = np.arange(range_min_x, range_max_x, 0.01)
@@ -475,6 +476,7 @@ def main():
 	# vytvoření y-ových souřadnic pomocí gplearn.predict h(t)
 	y = fr.predict(np.c_[x])
 	plt.plot(x, y, linewidth=2)
+	print(fr._program.export_graphviz(), file=sys.stderr) # tisk kódu pro vykreslení nalezeného stromu
 	
 	# příprava pro vykreslení ze sympy
 	t = sympy.symbols("t", negative=False, real=True)
@@ -489,6 +491,15 @@ def main():
 	plt.title(r'$\mathsf{\lambda}(t)$', fontdict=font)
 	plt.xlabel("t")
 	plt.grid(True)
+	
+	# uložení grafu
+	if arguments.file_with_points is not None:
+		fig_filename = os.path.splitext(arguments.file_with_points)[0]
+	else:
+		fig_filename = os.path.splitext(DEFAULT_FILE_SAVE_POINTS)[0]
+	plt.savefig(fig_filename + ".pdf")
+	
+	# zobrazení grafu
 	plt.show()
 
 if __name__ == '__main__':
