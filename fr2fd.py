@@ -19,6 +19,7 @@ import collections
 import contextlib
 
 import sympy
+import gplearn.functions
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -41,8 +42,6 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REGEX_NEW_LINE = re.compile(r"""(?:\r\n|[\r\n])""")
 
 DEFAULT_FILE_SAVE_POINTS = "data.txt"
-
-EXPERIMENTAL_EN = True
 
 # ====== FUNKCE A TŘÍDY ======
 
@@ -290,6 +289,32 @@ def loadCoords(filename):
 	
 	return sorted_coords
 
+def extractExprFromGplearn(program):
+	"""
+	Overloads `print` output of the object to resemble a LISP tree.
+	
+	Převzato z https://github.com/trevorstephens/gplearn/blob/master/gplearn/_program.py
+	"""
+	terminals = [0]
+	output = ''
+	for i, node in enumerate(program):
+		if isinstance(node, gplearn.functions._Function):
+			terminals.append(node.arity)
+			output += node.name + '('
+		else:
+			if isinstance(node, int):
+				output += 'X%s' % node
+			else:
+				output += sympy.srepr(sympy.nsimplify(node)) # Převzato kvůli tomuto řádku. Původně bylo zde """output += '%.3f' % node""".
+			terminals[-1] -= 1
+			while terminals[-1] == 0:
+				terminals.pop()
+				terminals[-1] -= 1
+				output += ')'
+			if i != len(program) - 1:
+				output += ', '
+	return output
+
 def regressionFr(coords, seed=None, population_size=None, generations=None):
 	if population_size is None:
 		population_size = 1000
@@ -300,7 +325,8 @@ def regressionFr(coords, seed=None, population_size=None, generations=None):
 	X_train, y_train = zip(*(([x], y) for (x, y) in coords))
 	
 	from gplearn.genetic import SymbolicRegressor
-	est_gp = SymbolicRegressor( # FIXME: Kolik náhodných čísel to vygeneruje?
+	# Kolik náhodných čísel gplearn vygeneruje? Není omezeno. Buď se dosadí funkce, proměnná nebo se vygeneruje náhodné číslo z daného intervalu.
+	est_gp = SymbolicRegressor( # Estimator
 		population_size=population_size, generations=generations, tournament_size=20, stopping_criteria=0.0,
 		const_range=(-5.0, 5.0), init_depth=(2, 6), init_method='half and half',
 		function_set=('add', 'sub', 'mul', 'div'), metric='mean absolute error',
@@ -309,44 +335,31 @@ def regressionFr(coords, seed=None, population_size=None, generations=None):
 		warm_start=False, n_jobs=-1, verbose=1, random_state=seed
 	)
 	est_gp.fit(X_train, y_train)
-	return est_gp, est_gp._program
+	return est_gp, extractExprFromGplearn(est_gp._program)
 
 def fr2fd(expression):
-	from sympy import symbols, Add, Mul, Lambda, exp, integrate, sympify
+	from sympy import symbols, Function, Add, Mul, Lambda, exp, integrate, sympify
 	#from sympy.parsing.sympy_parser import parse_expr as sympy_parse_expr
 	
 	# gplearn 'div' : protected division where a denominator near-zero returns 1.
-	from sympy import Function, S
-	class gplearnDiv(Function):
-		@classmethod
-		def eval(cls, x, y):
-			if y.is_Number:
-				if abs(y) <= 0.001:
-					return S.One
-				else:
-					return x/y
-			elif x.is_Symbol and x is y:
-				return S.One
-			elif EXPERIMENTAL_EN: # Právě jsem si uvědomil, že není možné dělit proměnnou, jenž jistě bude nabývat hodnoty nula.
-				if y.is_Symbol:
-					return S.One
-				else:
-					return x/y
+	gplearnDiv = Function("gplearnDiv")
 	
 	x, y = symbols('x y')
-	t = symbols("t")
+	t = symbols("t", negative=False, real=True)
 	locals = {
 		"add": Add,
 		"mul": Mul,
 		"sub": Lambda((x, y), x - y),
-		"div": Lambda((x, y), x / y),
+#		"div": Lambda((x, y), x / y),
+		"div": gplearnDiv,
 		"X0": t
 	}
 	fr = sympify(expression, locals=locals, evaluate=False) # h(t) nebo-li λ(t)
 	#fr = sympy_parse_expr(expression, local_dict=locals, evaluate=False) # h(t) nebo-li λ(t)
-	rf = exp(-integrate(fr, (t, 0, t))) # R(t) = exp(-integrate(h(t),t,0,t))
-	fd = fr * rf # f(t) = h(t)*R(t) = h(t)*exp(-integrate(h(t),t,0,t))
-	uf = 1 - rf # F(t) = 1-R(t) = 1-exp(-integrate(h(t),t,0,t))
+	x = symbols('x', real=True)
+	rf = exp(-integrate(fr, (x, 0, t))) # R(t) = exp(-integrate(h(x),x,0,t))
+	fd = fr * rf # f(t) = h(t)*R(t) = h(t)*exp(-integrate(h(x),x,0,t))
+	uf = 1 - rf # F(t) = 1-R(t) = 1-exp(-integrate(h(x),x,0,t))
 	
 	printDbg(fd == uf.diff(t))
 	printDbg(fr == fd / rf)
@@ -434,42 +447,47 @@ def main():
 	for f, expr in results.items():
 		print(f, "=", expr)
 	
-	# == Zobrazení grafů výsledných funkcí pomocí sympy ==
+	# == Zobrazení grafů výsledných funkcí pomocí matplotlib.pyplot as plt ==
+	plt.figure(1)
+	plt.subplot(111)
 	
-	t = sympy.symbols('t')
-	min_x = coords[0].x
-	max_x = coords[-1].x
+	# vykreslení vstupních bodů
+	input_x, input_y = zip(*coords)
+	plt.plot(input_x, input_y, color='black', marker='x', linestyle="")
 	
-	#regrese 10% na každou stranu
+	# = příprava x-ových souřadnic pro vykreslení grafů =
+	min_x = coords[0].x # minimální x-ová souřadnice
+	max_x = coords[-1].x # maximální x-ová souřadnice
+	
+	# regrese 10% na každou stranu
 	range_min_x = min_x - (max_x - min_x)*0.1
 	if range_min_x < 0:
 		range_min_x = 0
 	range_max_x = max_x + (max_x - min_x)*0.1
-#	with plt.style.context(("default")):
-#		for f, expr in results.items():
-#			sympy.plot(expr, (t, range_min_x, range_max_x), title=f, ylabel=f, axis=True)
+	range_min_x = -2.1
+	range_max_x = -2.0
 	
-	# == Zobrazení grafů výsledných funkcí pomocí matplotlib.pyplot ==
-	plt.subplot(111)
-	
-	# tisk vstupních bodů
-	input_x, input_y = zip(*coords)
-	plt.plot(input_x, input_y, color='black', marker='x', linestyle="")
-	
-	# příprava x-ových souřadnic pro vykreslení grafů
+	# vytvoření x-ových souřadnic
 	x = np.arange(range_min_x, range_max_x, 0.01)
+	x = np.arange(range_min_x, range_max_x, 0.001)
 	
-	# tisk gplearn.predict h(t)
+	# = vykreslení fce h(t) =
+	# vytvoření y-ových souřadnic pomocí gplearn.predict h(t)
 	y = fr.predict(np.c_[x])
 	plt.plot(x, y, linewidth=2)
 	
-	# tisk sympy h(t)
-	h = sympy.lambdify(t, results["h(t)"], "numpy")
+	# příprava pro vykreslení ze sympy
+	t = sympy.symbols("t", negative=False, real=True)
+	
+	# vytvoření y-ových souřadnic pomocí sympy.lambdify h(t)
+#	h = sympy.lambdify(t, results["h(t)"], "numpy")
+	h = sympy.lambdify(t, results["h(t)"], [{"gplearnDiv": gplearn.functions.div2}, "numpy"])
 	y = h(x)
 	plt.plot(x, y, linewidth=2, linestyle="--")
 	
 	font = {'family': 'serif', 'weight': 'normal', 'size': 22}
-	plt.title(r'$h(t)$', fontdict=font)
+	plt.title(r'$\mathsf{\lambda}(t)$', fontdict=font)
+	plt.xlabel("t")
 	plt.grid(True)
 	plt.show()
 
