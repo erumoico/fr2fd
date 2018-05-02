@@ -339,7 +339,7 @@ def regressionFr(coords, seed=None, population_size=None, generations=None):
 	return est_gp, extractExprFromGplearn(best_individual.program)
 
 def fr2fd(expression):
-	from sympy import symbols, Function, Add, Mul, Lambda, exp, integrate, sympify
+	from sympy import symbols, Function, Add, Mul, Lambda, exp, integrate, sympify, lambdify
 	
 	# gplearn 'div' : protected division where a denominator near-zero returns 1.
 	gplearnDiv = Function("gplearnDiv")
@@ -353,16 +353,23 @@ def fr2fd(expression):
 		"div": gplearnDiv,
 		"X0": t
 	}
-	fr = sympify(expression, locals=locals, evaluate=False) # h(t) nebo-li λ(t)
+	fr = sympify(expression, locals=locals, evaluate=False) # h(t) nebo-li λ(t) nebo-li "Failure Rate"
+	
 	x = symbols('x', real=True)
-	rf = exp(-integrate(fr, (x, 0, t))) # R(t) = exp(-integrate(h(x),x,0,t))
-	fd = fr * rf # f(t) = h(t)*R(t) = h(t)*exp(-integrate(h(x),x,0,t))
-	uf = 1 - rf # F(t) = 1-R(t) = 1-exp(-integrate(h(x),x,0,t))
+	rf = exp(-integrate(fr, (x, 0, t))) # R(t) = exp(-integrate(h(x),x,0,t)) nebo-li "Reliability Function"
+	fd = fr * rf # f(t) = h(t)*R(t) = h(t)*exp(-integrate(h(x),x,0,t)) nebo-li "Failure Density"
+	uf = 1 - rf # F(t) = 1-R(t) = 1-exp(-integrate(h(x),x,0,t)) nebo-li "Unreliability Function"
 	
 	printDbg(fd == uf.diff(t))
 	printDbg(fr == fd / rf)
 	
-	return {"h(t)": fr, "f(t)": fd, "F(t)": uf, "R(t)": rf}
+	# Vytvoření rychle vyhodnotitelných funkcí
+	fr_lambda = lambdify(t, fr, [{"gplearnDiv": gplearn.functions.div2}, "numpy"]) # "Failure Rate"
+	fd_lambda = lambdify(t, fd, [{"gplearnDiv": gplearn.functions.div2}, "numpy"]) # "Failure Density"
+	uf_lambda = lambdify(t, uf, [{"gplearnDiv": gplearn.functions.div2}, "numpy"]) # "Unreliability Function"
+	rf_lambda = lambdify(t, rf, [{"gplearnDiv": gplearn.functions.div2}, "numpy"]) # "Reliability Function"
+	
+	return {"h": fr, "f": fd, "F": uf, "R": rf, "h(t)": fr_lambda, "f(t)": fd_lambda, "F(t)": uf_lambda, "R(t)": rf_lambda}
 
 # ====== MAIN ======
 
@@ -442,8 +449,8 @@ def main():
 	results = fr2fd(fr_str)
 	
 	# == Zobrazení výsledných funkcí ==
-	for f, expr in results.items():
-		print(f, "=", expr)
+	for f in ("h", "f", "F"):
+		print(f+"(t)", "=", results[f])
 	
 	# == Zobrazení grafů výsledných funkcí pomocí matplotlib.pyplot as plt ==
 	plt.figure(1)
@@ -473,12 +480,8 @@ def main():
 	plt.plot(x, y, linewidth=2)
 	print(fr._program.export_graphviz(), file=sys.stderr) # tisk kódu pro vykreslení nalezeného stromu
 	
-	# příprava pro vykreslení ze sympy
-	t = sympy.symbols("t", negative=False, real=True)
-	
 	# vytvoření y-ových souřadnic pomocí sympy.lambdify h(t)
-	h = sympy.lambdify(t, results["h(t)"], [{"gplearnDiv": gplearn.functions.div2}, "numpy"])
-	y = h(x)
+	y = results["h(t)"](x)
 	plt.plot(x, y, linewidth=2, linestyle="--")
 	
 	font = {'family': 'serif', 'weight': 'normal', 'size': 22}
