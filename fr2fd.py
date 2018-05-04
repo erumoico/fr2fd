@@ -22,7 +22,10 @@ import sympy
 import gplearn.functions
 
 import numpy as np
+#import matplotlib
+#matplotlib.use("Agg") # Odkomentovat pokud nemáme Xka a/nebo nechceme zobrazovat graf.
 import matplotlib.pyplot as plt
+#import matplotlib.animation as animation
 
 # Pro debugování:
 import debug
@@ -34,6 +37,15 @@ import my_exceptions
 
 # ====== GLOBÁLNÍ PROMĚNNÉ ======
 
+VERBOSITY = 0
+def setVerbosity(verbosity):
+	global VERBOSITY
+	if isinstance(verbosity, int):
+		VERBOSITY = verbosity
+	else:
+		raise TypeError("NaN")
+	return VERBOSITY
+
 # ====== KONSTANTY ======
 
 # Získání absolutní cesty k adresáři ve kterém je tento soubor.
@@ -42,6 +54,10 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REGEX_NEW_LINE = re.compile(r"""(?:\r\n|[\r\n])""")
 
 DEFAULT_FILE_SAVE_POINTS = "data.txt"
+DEFAULT_FILE_FIGURE_SUFFIX = ".pdf"
+DEFAULT_FILE_FIGURE_ANIM_SUFFIX = ".png"
+DEFAULT_FILE_FIGURE_MOVIE_SUFFIX = ".mp4"
+DEFAULT_FILE_TREE_GRAPH_SUFFIX = "-graph.graphviz"
 
 # ====== FUNKCE A TŘÍDY ======
 
@@ -54,7 +70,7 @@ import tkinter
 class CoordsGetter:
 	
 	def __init__(self, verbose=True):
-		self.verbose = verbose
+		self.verbose = bool(verbose)
 		
 		self.width = 600+1
 		self.width_scale = 50 # počet pixelů na jednotku na ose x
@@ -332,7 +348,7 @@ def regressionFr(coords, seed=None, population_size=None, generations=None):
 		function_set=('add', 'sub', 'mul', 'div'), metric='mean absolute error',
 		parsimony_coefficient=0.001, p_crossover=0.9, p_subtree_mutation=0.01,
 		p_hoist_mutation=0.01, p_point_mutation=0.01, p_point_replace=0.05, max_samples=1.0,
-		warm_start=False, n_jobs=-1, verbose=1, random_state=seed
+		warm_start=False, n_jobs=-1, verbose=VERBOSITY, random_state=seed
 	)
 	est_gp.fit(X_train, y_train)
 	best_individual = est_gp._program
@@ -373,6 +389,119 @@ def fr2fd(expression):
 
 # ====== MAIN ======
 
+def argParse():
+	"""
+	Zpracování parametrů příkazového řádku
+	"""
+	
+	parser = argparse.ArgumentParser(
+		description = "A foo that bars",
+		epilog = "And that's how you'd foo a bar"
+	)
+	
+	parser.add_argument("--debug",
+		action = "store_true",
+		dest = "debug",
+		help = ("Povolí ladící výpisy.")
+	)
+	parser.add_argument("-v", "--verbose",
+		action = "count",
+		dest = "verbosity",
+		default = 0,
+		help = ("Povolí výpis průběhu evoluce.")
+	)
+	parser.add_argument("-V", "--version",
+		action = "version",
+		version = "%(prog)s 0.9.0",
+		help = ("Pouze vypíše verzi tohoto programu a skončí.")
+	)
+	
+	parser.add_argument("--not_show_figure",
+		action = "store_false",
+		dest = "show_figure",
+		help = ("Zakáže zobrazení grafu průběhu funkcí λ(t), f(t) a F(t).")
+	)
+	parser.add_argument("--save_figure",
+		nargs = "?",
+		default = False,
+		const = True,
+		type = str,
+		help = ("Cesta s názvem souboru, do kterého se má uložit obrázek výsledného grafu. "
+			"Výchozí cesta je dle vstupního souboru. Výchozí přípona je \"%s\". Existující soubor bude přepsán." % DEFAULT_FILE_FIGURE_SUFFIX
+		)
+	)
+	parser.add_argument("--save_figure_animation",
+		nargs = "?",
+		default = False,
+		const = True,
+		type = str,
+		help = ("Cesta s názvem souboru, do kterého se má uložit animace evoluce funkcí. (neimplementováno) "
+			"Výchozí cesta je dle vstupního souboru. Výchozí přípona je \"%s\". Existující soubor bude přepsán." % DEFAULT_FILE_FIGURE_ANIM_SUFFIX
+		)
+	)
+	parser.add_argument("--save_figure_movie",
+		nargs = "?",
+		default = False,
+		const = True,
+		type = str,
+		help=("Cesta s názvem souboru, do kterého se má uložit video evoluce funkcí. (neimplementováno) "
+			"Výchozí cesta je dle vstupního souboru. Výchozí přípona je \"%s\". Existující soubor bude přepsán." % DEFAULT_FILE_FIGURE_MOVIE_SUFFIX
+		)
+	)
+	parser.add_argument("--save_tree_graph",
+		nargs = "?",
+		default = False,
+		const = True,
+		type = str,
+		help = ("Cesta s názvem souboru, do kterého se má uložit kód pro vykreslení výsledného grafu nalezeného stromu. "
+			"Výchozí cesta je dle vstupního souboru. Výchozí přípona je \"%s\". Existující soubor bude přepsán. "
+			"Kód je posléze možné vykreslit, např. do PDF, pomocí: \ndot 'input.graphviz' -Tpdf > 'output.pdf'" % DEFAULT_FILE_TREE_GRAPH_SUFFIX
+		)
+	)
+	
+	parser.add_argument("-S", "--seed",
+		action = "store",
+		default = generateSeed(),
+		type = int,
+		help = ("Počáteční seed.")
+	)
+	
+	parser.add_argument("--population_size",
+		action = "store",
+		default = None,
+		type = int,
+		help = ("Velikost populace.")
+	)
+	parser.add_argument("--generations",
+		action = "store",
+		default = None,
+		type = int,
+		help = ("Maximální počet generací.")
+	)
+	
+	parser.add_argument("--gp_engine",
+		action = "store",
+		default = "gplearn",
+		choices = ("gplearn", "tinygp", "cgp"),
+		help = ("Výběr implementace genetického programování (neimplementováno – pouze \"gplearn\").")
+	)
+	
+	parser.add_argument("file_with_points",
+		nargs = "?",
+		default = None,
+		type = str,
+		help = ("Cesta k souboru s body, jenž mají být interpolovány. "
+			"Je-li zadáno \"-\", čte se ze stdin. "
+			"Není-li zadán soubor s body, pak se souřadnice získají od uživatele naklikáním do grafu. "
+			"Levé tlačítko myši <LMB> přidá bod, <BackSpace> odebere poslední přidaný, <Enter> uloží a ukončí. "
+			"Body jsou uloženy do souboru \"%s\". Existuje-li, přepíše se." % DEFAULT_FILE_SAVE_POINTS
+		),
+		metavar = DEFAULT_FILE_SAVE_POINTS,
+	)
+	arguments = parser.parse_args()
+	
+	return arguments
+
 def main():
 	
 	# == Abychom věděli co šahá kam nemá ==
@@ -383,58 +512,23 @@ def main():
 	#signal.signal(signal.SIGTERM, my_exceptions.signalHandler)
 	signal.signal(signal.SIGINT, my_exceptions.signalHandler)
 	
-	# == Zpracování parametrů ==
-	parser = argparse.ArgumentParser()
-	parser.add_argument("--debug",
-		action = "store_true",
-		dest = "debug",
-		help = ("Povolí ladící výpisy.")
-	)
-	parser.add_argument("-S", "--seed",
-		action = "store",
-		default = generateSeed(),
-		type = int,
-		help = ("Počáteční seed.")
-	)
-	
-	parser.add_argument("--population_size",
-		action="store",
-		default=None,
-		type=int,
-		help=("Velikost populace.")
-	)
-	parser.add_argument("--generations",
-		action="store",
-		default=None,
-		type=int,
-		help=("Maximální počet generací.")
-	)
-	
-	parser.add_argument("file_with_points",
-		nargs="?",
-		default=None,
-		type=str,
-		help=("Cesta k souboru s body, jenž mají být interpolovány. "
-			"Je-li zadáno \"-\", čte se ze stdin. "
-			"Není-li zadán soubor s body, pak se souřadnice získají od uživatele naklikáním do grafu. "
-			"Levé tlačítko myši <LMB> přidá bod, <BackSpace> odebere poslední přidaný, <Enter> uloží a ukončí. "
-			"Body jsou uloženy do souboru \"%s\". Existuje-li, přepíše se." % DEFAULT_FILE_SAVE_POINTS
-		),
-		metavar=DEFAULT_FILE_SAVE_POINTS,
-	)
-	arguments = parser.parse_args()
+	# == Zpracování parametrů příkazového řádku ==
+	arguments = argParse()
 	
 	# == Povolení ladících výpisů ==
 	debug.DEBUG_EN = arguments.debug
+	
+	# == Nastavení ukecaného výstupu ==
+	setVerbosity(arguments.verbosity)
 	
 	# == Načtení souřadnic pro symbolickou regresi ==
 	# Není-li zadán soubor s body, pak se souřadnice získají pomocí třídy CoordsGetter
 	if arguments.file_with_points is not None:
 		coords = loadCoords(arguments.file_with_points)
 	else:
-		coords_getter = CoordsGetter()
+		coords_getter = CoordsGetter(verbose = VERBOSITY)
 		coords = coords_getter.getCoords()
-	print(coords)
+	printDbg(coords)
 	
 	# == Symbolická regrese za pomocí genetického programování ==
 	seed = arguments.seed % 2**32 # Takto to vyžaduje gplearn.
@@ -445,7 +539,19 @@ def main():
 		generations = arguments.generations)
 	print("h(t) =", fr_str)
 	
-	# == Integrace za pomocí symbolického výpočtu ==
+	# == uložení kódu pro vykreslení výsledného grafu nalezeného stromu do souboru ==
+	if arguments.file_with_points is not None:
+		default_filename_prefix = os.path.splitext(arguments.file_with_points)[0]
+	else:
+		default_filename_prefix = os.path.splitext(DEFAULT_FILE_SAVE_POINTS)[0]
+	
+	if arguments.save_tree_graph:
+		filename = arguments.save_tree_graph
+		filename = filename is not True and filename or default_filename_prefix + DEFAULT_FILE_TREE_GRAPH_SUFFIX
+		with smartOpen(filename, "w") as fp:
+			print(fr._program.export_graphviz(), file=fp) # tisk kódu do souboru
+	
+	# == Integrace fce h(t) za pomocí symbolického výpočtu ==
 	results = fr2fd(fr_str)
 	
 	# == Zobrazení výsledných funkcí ==
@@ -477,7 +583,6 @@ def main():
 	# vytvoření y-ových souřadnic pomocí gplearn.predict h(t)
 	y = fr.predict(np.c_[x])
 	ax1.plot(x, y, linewidth=2)
-	print(fr._program.export_graphviz(), file=sys.stderr) # tisk kódu pro vykreslení nalezeného stromu
 	
 	# vytvoření y-ových souřadnic pomocí sympy.lambdify h(t)
 	y = results["h(t)"](x)
@@ -517,14 +622,14 @@ def main():
 	plt.subplots_adjust(top=0.92, bottom=0.10, left=0.10, right=0.95, hspace=0.25,wspace=0.35)
 	
 	# uložení grafu
-	if arguments.file_with_points is not None:
-		fig_filename = os.path.splitext(arguments.file_with_points)[0]
-	else:
-		fig_filename = os.path.splitext(DEFAULT_FILE_SAVE_POINTS)[0]
-	plt.savefig(fig_filename + ".pdf")
+	if arguments.save_figure:
+		filename = arguments.save_figure
+		filename = filename is not True and filename or default_filename_prefix + DEFAULT_FILE_FIGURE_SUFFIX
+		plt.savefig(filename)
 	
 	# zobrazení grafu
-	plt.show()
+	if arguments.show_figure:
+		plt.show()
 
 if __name__ == '__main__':
 	main()
