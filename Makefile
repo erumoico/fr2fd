@@ -7,14 +7,15 @@
 #
 
 # = Jméno přeloženého programu =
+# Failure Rate λ(t) to Failure Density f(t)
 login=xdolez52
-program=fr2fd # Failure Rate λ(t) to Failure Density f(t)
-doc_name=dokumentace
+program=fr2fd
+prezentace=xdolez52-prezentace-00-Evolucni-hledani-funkci-se-specifickymi-vlastnostmi
 pack_name=$(login)
 
 # = Seznam zdrojových souborů =
 SRC=$(program).py __init__.py my_exceptions.py debug.py
-OTHER=Makefile $(doc_name).pdf
+OTHER=Makefile $(prezentace).pdf tests
 
 # = Seznam potřebných Python balíčků =
 PY_PACKAGES=sympy[alldeps] gplearn[alldeps] tkinter[alldeps]
@@ -22,21 +23,21 @@ PY_PACKAGES=sympy[alldeps] gplearn[alldeps] tkinter[alldeps]
 # = Nastavení cílů bez souboru =
 .PHONY: clean cleanDoc cleanBackup
 .PHONY: pack packZip packTar
-.PHONY: build all doc install test
+.PHONY: build all prezentace install test
 
 # = Nastavení výchozího cíle =
 .PHONY: default
 default: build
 
 # = Obecné cíle =
-all: build doc
+all: build prezentace
 
 # = Obecné cíle pro sestavení =
 build: $(program)
 
-doc:
-	make -C doc
-	cp doc/$(doc_name).pdf ./
+prezentace:
+	make -C ../prezentace
+	cp ../prezentace/$(prezentace).pdf ./
 
 # = Instalace potřebných balíků =
 install:
