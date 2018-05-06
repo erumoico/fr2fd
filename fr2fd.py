@@ -439,7 +439,7 @@ def fr2fd(expression):
 		"X0": x
 	}
 	fr = sympify(expression, locals=locals)#, evaluate=False) # h(x) nebo-li λ(x) nebo-li "Failure Rate"
-	fr = sympy.nsimplify(fr, rational_conversion='exact')#, rational=True, tolerance=1e-7)
+	fr = sympy.nsimplify(fr, rational_conversion='exact', rational=True, tolerance=1e-7)
 	printDbg("h(x) =", fr)
 	int_fr = Integral(fr, (x, 0, t))
 	expr_int_fr = int_fr.doit()
