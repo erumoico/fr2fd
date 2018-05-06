@@ -307,8 +307,6 @@ def loadCoords(filename):
 
 def extractExprFromGplearn(program):
 	"""
-	Overloads `print` output of the object to resemble a LISP tree.
-	
 	Převzato z https://github.com/trevorstephens/gplearn/blob/master/gplearn/_program.py
 	"""
 	terminals = [0]
@@ -321,7 +319,12 @@ def extractExprFromGplearn(program):
 			if isinstance(node, int):
 				output += 'X%s' % node
 			else:
-				output += sympy.srepr(sympy.nsimplify(node)) # Převzato kvůli tomuto řádku. Původně bylo zde """output += '%.3f' % node""".
+				# Převzato kvůli tomuto bloku.
+#				output += '%.3f' % node # Tento řádek je původní.
+				output += repr(node)
+#				output += sympy.srepr(node)
+#				output += sympy.srepr(sympy.nsimplify(node))
+#				output += sympy.srepr(sympy.nsimplify(node, rational_conversion='exact', rational=True, tolerance=1e-7))
 			terminals[-1] -= 1
 			while terminals[-1] == 0:
 				terminals.pop()
@@ -355,26 +358,31 @@ def regressionFr(coords, seed=None, population_size=None, generations=None):
 	return est_gp, extractExprFromGplearn(best_individual.program)
 
 def fr2fd(expression):
-	from sympy import symbols, Function, Add, Mul, Lambda, exp, integrate, sympify, lambdify
+	from sympy import symbols, Add, Mul, Lambda, exp, Integral, sympify, lambdify
 	
-	# gplearn 'div' : protected division where a denominator near-zero returns 1.
-	gplearnDiv = Function("gplearnDiv")
-	
-	x, y = symbols('x y')
+	a, b = symbols('a b')
+	x = symbols('x', negative=False, real=True)
 	t = symbols("t", negative=False, real=True)
 	locals = {
 		"add": Add,
 		"mul": Mul,
-		"sub": Lambda((x, y), x - y),
-		"div": gplearnDiv,
-		"X0": t
+		"sub": Lambda((a, b), a - b),
+		"div": Lambda((a, b), a / b),
+		"X0": x
 	}
-	fr = sympify(expression, locals=locals, evaluate=False) # h(t) nebo-li λ(t) nebo-li "Failure Rate"
+	fr = sympify(expression, locals=locals, evaluate=False) # h(x) nebo-li λ(x) nebo-li "Failure Rate"
+	printDbg("h(x) =", fr)
+	int_fr = Integral(fr, (x, 0, t))
+	expr_int_fr = int_fr.doit()
 	
-	x = symbols('x', real=True)
-	rf = exp(-integrate(fr, (x, 0, t))) # R(t) = exp(-integrate(h(x),x,0,t)) nebo-li "Reliability Function"
+	fr = fr.subs(x, t) # h(t) nebo-li λ(t) nebo-li "Failure Rate"
+	printDbg("h(t) =", fr)
+	rf = exp(-expr_int_fr) # R(t) = exp(-integrate(h(x),x,0,t)) nebo-li "Reliability Function"
+	printDbg("R(t) =", rf)
 	fd = fr * rf # f(t) = h(t)*R(t) = h(t)*exp(-integrate(h(x),x,0,t)) nebo-li "Failure Density"
+	printDbg("f(t) =", fd)
 	uf = 1 - rf # F(t) = 1-R(t) = 1-exp(-integrate(h(x),x,0,t)) nebo-li "Unreliability Function"
+	printDbg("F(t) =", uf)
 	
 	printDbg(fd == uf.diff(t))
 	printDbg(fr == fd / rf)
@@ -537,7 +545,7 @@ def main():
 		seed = seed,
 		population_size = arguments.population_size,
 		generations = arguments.generations)
-	print("h(t) =", fr_str)
+	print("h(X0) =", fr_str)
 	
 	# == uložení kódu pro vykreslení výsledného grafu nalezeného stromu do souboru ==
 	if arguments.file_with_points is not None:
@@ -586,6 +594,8 @@ def main():
 	
 	# vytvoření y-ových souřadnic pomocí sympy.lambdify h(t)
 	y = results["h(t)"](x)
+	if isinstance(y, float): # Je-li h(t) = konst., pak y je float a ne np.array. Takže se musí namnožit.
+		y = np.repeat(y, len(x))
 	ax1.plot(x, y, linewidth=2, linestyle="--")
 	
 	font = {'family': 'sans-serif'}
