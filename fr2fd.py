@@ -17,11 +17,13 @@ import re
 import time, random
 import collections
 import contextlib
+import functools
 
 import sympy
 import gplearn.functions
 import gplearn.fitness
 
+#import math
 import numpy as np
 #import matplotlib
 #matplotlib.use("Agg") # Odkomentovat pokud nemáme Xka a/nebo nechceme zobrazovat graf.
@@ -335,7 +337,46 @@ def extractExprFromGplearn(program):
 				output += ', '
 	return output
 
+def get_subtree(self, random_state, program=None):
+	"""
+	Převzato z https://github.com/trevorstephens/gplearn/blob/master/gplearn/_program.py
+	
+	Get a random subtree from the program.
+	Parameters
+	----------
+	random_state : RandomState instance
+		The random number generator.
+	program : list, optional (default=None)
+		The flattened tree representation of the program. If None, the
+		embedded tree in the object will be used.
+	Returns
+	-------
+	start, end : tuple of two ints
+		The indices of the start and end of the random subtree.
+	"""
+	if program is None:
+		program = self.program
+	if len(program) > 1: # Odstranění kořene z výběru podstromu
+		program_without_root = 1
+	else:
+		program_without_root = 0
+	probs = np.array([0.9 if isinstance(node, gplearn.functions._Function) else 0.1
+		for node in program[program_without_root:]])
+	probs = np.cumsum(probs / probs.sum())
+	start = np.searchsorted(probs, random_state.uniform()) + program_without_root
+	
+	stack = 1
+	end = start
+	while stack > end - start:
+		node = program[end]
+		if isinstance(node, gplearn.functions._Function):
+			stack += node.arity
+		end += 1
+	
+	return start, end
+
 # fitness funkce
+# https://github.com/trevorstephens/gplearn/blob/master/gplearn/fitness.py
 def _sum_absolute_error(y, y_pred, w):
 	"""Calculate the sum absolute error."""
 	return np.sum(np.abs(y_pred - y))
@@ -344,6 +385,14 @@ def _weight_sum_absolute_error(y, y_pred, w):
 	"""Calculate the weight sum absolute error."""
 	return np.sum(np.abs(y_pred - y) * w)
 weight_sum_absolute_error = gplearn.fitness.make_fitness(function=_weight_sum_absolute_error, greater_is_better=False)
+
+# chráněné varianty funkcí
+# https://github.com/trevorstephens/gplearn/blob/master/gplearn/functions.py
+def _protected_division(x1, x2):
+    """Closure of division (x1/x2) for zero denominator."""
+    with np.errstate(divide='ignore', invalid='ignore'):
+        return np.where(np.abs(x2) > 0.001, np.divide(x1, x2), x1)
+div2 = gplearn.functions.make_function(function=_protected_division, name='div', arity=2)
 
 def regressionFr(coords, seed=None, population_size=None, generations=None):
 	if population_size is None:
@@ -356,20 +405,27 @@ def regressionFr(coords, seed=None, population_size=None, generations=None):
 	
 	from gplearn.genetic import SymbolicRegressor
 	# Kolik náhodných čísel gplearn vygeneruje? Není omezeno. Buď se dosadí funkce, proměnná nebo se vygeneruje náhodné číslo z daného intervalu.
-	est_gp = SymbolicRegressor( # Estimator
-		population_size=population_size, generations=generations, tournament_size=20, stopping_criteria=0.0,
+	est_gp = SymbolicRegressor( # Estimator Genetic Programming
+		population_size=population_size, generations=1, tournament_size=20, stopping_criteria=0.0,
 		const_range=(0.0, 5.0), init_depth=(2, 6), init_method='half and half',
-		function_set=('add', 'mul', 'div'), metric=sum_absolute_error,
+		function_set=('add', 'mul'), metric=sum_absolute_error,
 		parsimony_coefficient=0.001, p_crossover=0.9, p_subtree_mutation=0.01,
 		p_hoist_mutation=0.01, p_point_mutation=0.01, p_point_replace=0.05, max_samples=1.0,
 		warm_start=False, n_jobs=-1, verbose=VERBOSITY, random_state=seed
 	)
 	est_gp.fit(X_train, y_train)
+	for p in est_gp._programs[0]:
+		p.program[0] = gplearn.functions.div2 # Všechny kořeny přepíšeme na dělení
+	for i in range(1, generations):
+		for p in est_gp._programs[i-1]:
+			p.get_subtree = functools.partial(get_subtree, p) # Všem potomkům zakážeme křížení z kořene
+		est_gp.set_params(generations=i+1, warm_start=True)
+		est_gp.fit(X_train, y_train)
 	best_individual = est_gp._program
 	return est_gp, extractExprFromGplearn(best_individual.program)
 
 def fr2fd(expression):
-	from sympy import symbols, Add, Mul, Lambda, exp, Integral, sympify, lambdify
+	from sympy import symbols, Add, Mul, Lambda, exp, Integral, sympify, lambdify, Pow, Integer
 	
 	a, b = symbols('a b')
 	x = symbols('x', negative=False, real=True)
@@ -379,9 +435,11 @@ def fr2fd(expression):
 		"mul": Mul,
 		"sub": Lambda((a, b), a - b),
 		"div": Lambda((a, b), a / b),
+		"inv": Lambda((a), Pow(a, Integer(-1))),
 		"X0": x
 	}
 	fr = sympify(expression, locals=locals)#, evaluate=False) # h(x) nebo-li λ(x) nebo-li "Failure Rate"
+	fr = sympy.nsimplify(fr, rational_conversion='exact')#, rational=True, tolerance=1e-7)
 	printDbg("h(x) =", fr)
 	int_fr = Integral(fr, (x, 0, t))
 	expr_int_fr = int_fr.doit()
@@ -395,14 +453,15 @@ def fr2fd(expression):
 	uf = 1 - rf # F(t) = 1-R(t) = 1-exp(-integrate(h(x),x,0,t)) nebo-li "Unreliability Function"
 	printDbg("F(t) =", uf)
 	
-	printDbg(fd == uf.diff(t))
-	printDbg(fr == fd / rf)
+	#printDbg(fd == uf.diff(t))
+	#printDbg(fr == fd / rf)
 	
 	# Vytvoření rychle vyhodnotitelných funkcí
-	fr_lambda = lambdify(t, fr, [{"gplearnDiv": gplearn.functions.div2}, "numpy"]) # "Failure Rate"
-	fd_lambda = lambdify(t, fd, [{"gplearnDiv": gplearn.functions.div2}, "numpy"]) # "Failure Density"
-	uf_lambda = lambdify(t, uf, [{"gplearnDiv": gplearn.functions.div2}, "numpy"]) # "Unreliability Function"
-	rf_lambda = lambdify(t, rf, [{"gplearnDiv": gplearn.functions.div2}, "numpy"]) # "Reliability Function"
+	modules = ["math"]
+	fr_lambda = lambdify(t, fr, modules) # "Failure Rate"
+	fd_lambda = lambdify(t, fd, modules) # "Failure Density"
+	uf_lambda = lambdify(t, uf, modules) # "Unreliability Function"
+	rf_lambda = lambdify(t, rf, modules) # "Reliability Function"
 	
 	return {"h": fr, "f": fd, "F": uf, "R": rf, "h(t)": fr_lambda, "f(t)": fd_lambda, "F(t)": uf_lambda, "R(t)": rf_lambda}
 
@@ -604,8 +663,8 @@ def main():
 	ax1.plot(x, y, linewidth=2)
 	
 	# vytvoření y-ových souřadnic pomocí sympy.lambdify h(t)
-	y = results["h(t)"](x)
-	if isinstance(y, float): # Je-li h(t) = konst., pak y je float a ne np.array. Takže se musí namnožit.
+	y = np.array(list(map(results["h(t)"], x)))
+	if not isinstance(y, np.ndarray): # Je-li h(t) = konst., pak y je float nebo int a ne np.ndarray. Takže se musí namnožit.
 		y = np.repeat(y, len(x))
 	ax1.plot(x, y, linewidth=2, linestyle="--")
 	
@@ -619,7 +678,7 @@ def main():
 	
 	# = vykreslení fce f(t) =
 	# vytvoření y-ových souřadnic pomocí sympy.lambdify f(t)
-	y = results["f(t)"](x)
+	y = np.array(list(map(results["f(t)"], x)))
 	ax2.plot(x, y, linewidth=2)
 	ylabel = r'$\mathsf{f}(t)$'
 #	title = r'Failure Density'
@@ -630,7 +689,7 @@ def main():
 	
 	# = vykreslení fce F(t) =
 	# vytvoření y-ových souřadnic pomocí sympy.lambdify F(t)
-	y = results["F(t)"](x)
+	y = np.array(list(map(results["F(t)"], x)))
 	ax3.plot(x, y, linewidth=2)
 	ylabel = r'$\mathsf{F}(t)$'
 #	title = r'Unreliability Function'
