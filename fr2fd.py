@@ -408,7 +408,7 @@ def regressionFr(coords, seed=None, population_size=None, generations=None):
 	est_gp = SymbolicRegressor( # Estimator Genetic Programming
 		population_size=population_size, generations=1, tournament_size=20, stopping_criteria=0.0,
 		const_range=(0.0, 5.0), init_depth=(2, 6), init_method='half and half',
-		function_set=('add', 'mul'), metric=sum_absolute_error,
+		function_set=('add', 'mul'), metric='mean absolute error', #metric=sum_absolute_error
 		parsimony_coefficient=0.001, p_crossover=0.9, p_subtree_mutation=0.01,
 		p_hoist_mutation=0.01, p_point_mutation=0.01, p_point_replace=0.05, max_samples=1.0,
 		warm_start=False, n_jobs=-1, verbose=VERBOSITY, random_state=seed
