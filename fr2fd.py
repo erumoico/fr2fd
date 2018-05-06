@@ -347,8 +347,8 @@ def regressionFr(coords, seed=None, population_size=None, generations=None):
 	# Kolik náhodných čísel gplearn vygeneruje? Není omezeno. Buď se dosadí funkce, proměnná nebo se vygeneruje náhodné číslo z daného intervalu.
 	est_gp = SymbolicRegressor( # Estimator
 		population_size=population_size, generations=generations, tournament_size=20, stopping_criteria=0.0,
-		const_range=(-5.0, 5.0), init_depth=(2, 6), init_method='half and half',
-		function_set=('add', 'sub', 'mul', 'div'), metric='mean absolute error',
+		const_range=(0.0, 5.0), init_depth=(2, 6), init_method='half and half',
+		function_set=('add', 'mul'), metric='mean absolute error',
 		parsimony_coefficient=0.001, p_crossover=0.9, p_subtree_mutation=0.01,
 		p_hoist_mutation=0.01, p_point_mutation=0.01, p_point_replace=0.05, max_samples=1.0,
 		warm_start=False, n_jobs=-1, verbose=VERBOSITY, random_state=seed
@@ -370,7 +370,7 @@ def fr2fd(expression):
 		"div": Lambda((a, b), a / b),
 		"X0": x
 	}
-	fr = sympify(expression, locals=locals, evaluate=False) # h(x) nebo-li λ(x) nebo-li "Failure Rate"
+	fr = sympify(expression, locals=locals)#, evaluate=False) # h(x) nebo-li λ(x) nebo-li "Failure Rate"
 	printDbg("h(x) =", fr)
 	int_fr = Integral(fr, (x, 0, t))
 	expr_int_fr = int_fr.doit()
