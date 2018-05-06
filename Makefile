@@ -10,18 +10,18 @@
 # Failure Rate λ(t) to Failure Density f(t)
 login=xdolez52
 program=fr2fd
-prezentace=xdolez52-prezentace-00-Evolucni-hledani-funkci-se-specifickymi-vlastnostmi
+prezentace=xdolez52-prezentace-00-Evolucni-hledani-funkci-se-specifickymi-vlastnostmi.pdf
 pack_name=$(login)
 
 # = Seznam zdrojových souborů =
 SRC=$(program).py __init__.py my_exceptions.py debug.py
-OTHER=Makefile $(prezentace).pdf tests
+OTHER=Makefile $(prezentace) tests
 
 # = Seznam potřebných Python balíčků =
 PY_PACKAGES=sympy[alldeps] gplearn[alldeps] tkinter[alldeps]
 
 # = Nastavení cílů bez souboru =
-.PHONY: clean cleanDoc cleanBackup
+.PHONY: clean cleanPrezentace cleanBackup
 .PHONY: pack packZip packTar
 .PHONY: build all prezentace install test
 
@@ -37,7 +37,7 @@ build: $(program)
 
 prezentace:
 	make -C ../prezentace
-	cp ../prezentace/$(prezentace).pdf ./
+	cp ../prezentace/$(prezentace) ./
 
 # = Instalace potřebných balíků =
 install:
@@ -45,10 +45,12 @@ install:
 
 # = Smazání všech dočasných souborů =
 clean:
+	rm -rf __pycache__
 	rm -f *.pyc $(program)
 
-cleanDoc:
-	make -C doc clean
+cleanPrezentace:
+	rm -f $(prezentace)
+	make -C ../prezentace clean
 
 cleanBackup:
 	rm -f *~ *.orig
