@@ -20,6 +20,7 @@ import contextlib
 
 import sympy
 import gplearn.functions
+import gplearn.fitness
 
 import numpy as np
 #import matplotlib
@@ -334,6 +335,16 @@ def extractExprFromGplearn(program):
 				output += ', '
 	return output
 
+# fitness funkce 
+def _sum_absolute_error(y, y_pred, w):
+	"""Calculate the sum absolute error."""
+	return np.sum(np.abs(y_pred - y))
+sum_absolute_error = gplearn.fitness.make_fitness(function=_sum_absolute_error, greater_is_better=False)
+def _weight_sum_absolute_error(y, y_pred, w):
+	"""Calculate the weight sum absolute error."""
+	return np.sum(np.abs(y_pred - y) * w)
+weight_sum_absolute_error = gplearn.fitness.make_fitness(function=_weight_sum_absolute_error, greater_is_better=False)
+
 def regressionFr(coords, seed=None, population_size=None, generations=None):
 	if population_size is None:
 		population_size = 1000
@@ -348,7 +359,7 @@ def regressionFr(coords, seed=None, population_size=None, generations=None):
 	est_gp = SymbolicRegressor( # Estimator
 		population_size=population_size, generations=generations, tournament_size=20, stopping_criteria=0.0,
 		const_range=(0.0, 5.0), init_depth=(2, 6), init_method='half and half',
-		function_set=('add', 'mul'), metric='mean absolute error',
+		function_set=('add', 'mul'), metric=sum_absolute_error,
 		parsimony_coefficient=0.001, p_crossover=0.9, p_subtree_mutation=0.01,
 		p_hoist_mutation=0.01, p_point_mutation=0.01, p_point_replace=0.05, max_samples=1.0,
 		warm_start=False, n_jobs=-1, verbose=VERBOSITY, random_state=seed
