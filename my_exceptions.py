@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# vim: set tabstop=4 softtabstop=0 noexpandtab shiftwidth=4
 
 # ***************************************************************
 # * Soubor:  my_exceptions.py                                   *

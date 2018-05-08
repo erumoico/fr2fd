@@ -18,7 +18,7 @@ SRC=$(program).py __init__.py my_exceptions.py debug.py
 OTHER=Makefile $(prezentace) tests
 
 # = Seznam potřebných Python balíčků =
-PY_PACKAGES=sympy[alldeps] gplearn[alldeps] tkinter[alldeps]
+PY_PACKAGES=sympy gplearn matplotlib numpy
 
 # = Nastavení cílů bez souboru =
 .PHONY: clean cleanPrezentace cleanBackup

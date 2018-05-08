@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# vim: set tabstop=4 softtabstop=0 noexpandtab shiftwidth=4
 
 # ***************************************************************
 # * Soubor:  test_gen.py                                        *
