@@ -109,5 +109,6 @@ generateTest(lambda t: bathtub1(t, 1, 0.1, 0.9), start=0.01, filename="bathtub1(
 generateTest(lambda t: bathtub2(t, 0.5, -0.9, 0.7), start=0.01, filename="bathtub2(t,k=0.5,b=-0.9,a=0.7)_data.txt")
 generateTest(lambda t: bathtub1(t, 0.5, 0.1, 0.9), start=0.01, filename="bathtub1(t,k=0.5,b=0.1,a=0.9)_data.txt")
 generateTest(lambda x: exp(x)/(x+0.01), filename="bathtub_div(exp(x),(x+0.01))_data.txt")
+generateTest(lambda x: (100*x**11 + 100*x**9 + 500*x**6 + 9*x**5 + 10)/(5*(x**5 + x**3 + 5)*(18*x**6 + 20*x**4 + 100*x + 1)), filename="bathtub_polynom_data.txt")
 
 # konec souboru fr2fd.py
