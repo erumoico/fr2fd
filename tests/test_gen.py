@@ -37,10 +37,13 @@ def smartOpen(filename, mode="r"):
 		if filename != "-":
 			fp.close()
 
-def generateTest(f, nfitcases=NFITCASES, filename="-", start=0, step=0.1):
+def generateTest(f, nfitcases=NFITCASES, filename="-", start=0, end=None, step=0.1):
 	"""
 	Uloží ve formátu pro TinyGp
 	"""
+	
+	if end is not None:
+		step = (end - start)/nfitcases
 	
 	with smartOpen(filename, "w") as fp:
 		print(NVAR, NRAND, MINRAND, MAXRAND, nfitcases+10, file=fp)
@@ -105,10 +108,13 @@ generateTest(lambda x: exp(-(x-3)*(x-3)), filename="gauss_e**(-(x-3)*(x-3))_data
 # http://www.sys-ev.com/reliability01.htm
 bathtub1 = lambda t, k, beta, a1: k * beta * t**(beta-1) * exp(a1*t) # λ(t) = k*β*t^(β-1) * exp(a1*t), kde 0 < a1 && 0 < β < 1
 bathtub2 = lambda t, k, beta, a1: k * t**(beta) * a1 * exp(a1*t) # λ(t) = k*t^β*a1 * exp(a1*t), kde 0 < a1 && -1 < β < 0
-generateTest(lambda t: bathtub1(t, 1, 0.1, 0.9), start=0.01, filename="bathtub1(t,k=1,b=0.1,a=0.9)_data.txt")
-generateTest(lambda t: bathtub2(t, 0.5, -0.9, 0.7), start=0.01, filename="bathtub2(t,k=0.5,b=-0.9,a=0.7)_data.txt")
-generateTest(lambda t: bathtub1(t, 0.5, 0.1, 0.9), start=0.01, filename="bathtub1(t,k=0.5,b=0.1,a=0.9)_data.txt")
+generateTest(lambda t: bathtub1(t+0.01, 1, 0.1, 0.9), filename="bathtub1(t+0.01,k=1,b=0.1,a=0.9)_data.txt")
+generateTest(lambda t: bathtub2(t+0.01, 0.5, -0.9, 0.7), filename="bathtub2(t+0.01,k=0.5,b=-0.9,a=0.7)_data.txt")
+generateTest(lambda t: bathtub1(t+0.01, 0.5, 0.1, 0.9), filename="bathtub1(t+0.01,k=0.5,b=0.1,a=0.9)_data.txt")
 generateTest(lambda x: exp(x)/(x+0.01), filename="bathtub_div(exp(x),(x+0.01))_data.txt")
+generateTest(lambda x: exp(x)/(10*x+1), filename="bathtub_div(exp(x),(10*x+1))_data.txt")
+generateTest(lambda x: exp(x)/(50*x+2), filename="bathtub_div(exp(x),(50*x+2))_data.txt")
+generateTest(lambda x: exp(exp(x))/(500*x+4), end=2.2, filename="bathtub_div(exp(exp(x)),(500*x+4))_data.txt")
 generateTest(lambda x: (100*x**11 + 100*x**9 + 500*x**6 + 9*x**5 + 10)/(5*(x**5 + x**3 + 5)*(18*x**6 + 20*x**4 + 100*x + 1)), filename="bathtub_polynom_data.txt")
 
 # konec souboru fr2fd.py
