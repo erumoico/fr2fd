@@ -72,6 +72,11 @@ Coord = collections.namedtuple("Coord", "x y")
 import tkinter
 
 class CoordsGetter:
+	"""
+	Zobrazí graf do kterého uživatel může naklikat souřadnice.
+	
+	Levé tlačítko myši <LMB> přidá bod, <BackSpace> odebere poslední přidaný, <Enter> uloží a ukončí.
+	"""
 	
 	def __init__(self, verbose=True):
 		self.verbose = bool(verbose)
@@ -250,6 +255,10 @@ class CoordsGetter:
 		_drawAxis(self.canvas, height_sign, height_scale, self.height, False, self.width, self.height)
 
 def uniqifyList(seq, order_preserving=False):
+	"""
+	Ze seznamu \a seq vytvoří nový seznam bez duplicit.
+	Umožňuje zachovat pořadí parametrem \a order_preserving.
+	"""
 	if order_preserving:
 		seen = set()
 		return [x for x in seq if x not in seen and not seen.add(x)]
@@ -257,6 +266,9 @@ def uniqifyList(seq, order_preserving=False):
 		return list(set(seq))
 
 def generateSeed():
+	"""
+	Generuje náhodné číslo pro seed pseudonáhodného generátoru.
+	"""
 	try:
 		seed = hash(os.urandom(32))
 	except NotImplementedError:
@@ -265,6 +277,9 @@ def generateSeed():
 	return seed
 
 def preparePrng(prng=None, seed=None):
+	"""
+	Připraví pseudonáhodný generátor.
+	"""
 	if seed is None:
 		seed = generateSeed()
 	
@@ -276,6 +291,13 @@ def preparePrng(prng=None, seed=None):
 
 @contextlib.contextmanager
 def smartOpen(filename, mode="r"):
+	"""
+	Jako open(), ale je-li \a filename == "-", pak vrátí file object na standardní vstup/výstup dle módu \a mode.
+	
+	Použití:
+		with smartOpen(filename) as fp:
+			# práce s otevřeným fp
+	"""
 	if filename == "-":
 		if "r" in mode:
 			fp = sys.stdin
@@ -291,6 +313,12 @@ def smartOpen(filename, mode="r"):
 			fp.close()
 
 def loadCoords(filename):
+	"""
+	Ze souboru se shodným formátem jako pro TinyGp načte souřadnice.
+	Podporuje pouze body se dvěmi souřadnicemi (x, y).
+	Zabraňuje tomu, aby libovolné dva body sdíleli x-ovou souřadnici (pokud to nastane oznamí to na chybový výstup).
+	Řadí souřadnice bodů dle X-ové souřadnice (pokud již není seřazeno oznámí to na chybový výstup).
+	"""
 	coords = []
 	with smartOpen(filename) as fp:
 		x_coords = set()
@@ -395,7 +423,11 @@ def _protected_division(x1, x2):
         return np.where(np.abs(x2) > 0.001, np.divide(x1, x2), x1)
 div2 = gplearn.functions.make_function(function=_protected_division, name='div', arity=2)
 
-def regressionFr(coords, seed=None, population_size=None, generations=None):
+def regressionOfFailureRate(coords, seed=None, population_size=None, generations=None):
+	"""
+	Pokusí se co nejlépe proložit body \a coords vyjadřující četnost chyb.
+	Snaží se při tom aby výsledek byl integrovatelný, ovšem integrovatelnost nezaručuje.
+	"""
 	if population_size is None:
 		population_size = 1000
 	if generations is None:
@@ -426,6 +458,10 @@ def regressionFr(coords, seed=None, population_size=None, generations=None):
 	return est_gp, extractExprFromGplearn(best_individual.program)
 
 def fr2fd(expression):
+	"""
+	Integruje \a expression vyjadřující četnost chyb λ(t).
+	Z výsledku sestaví rovnici pro funkci spolehlivosti R(t), hustotu pravděpodobnosti poruchy f(t) a funkci poruchovosti F(t).
+	"""
 	from sympy import symbols, Add, Mul, Lambda, exp, Integral, sympify, lambdify, Pow, Integer
 	
 	a, b = symbols('a b')
@@ -612,7 +648,7 @@ def main():
 	# == Symbolická regrese za pomocí genetického programování ==
 	seed = arguments.seed % 2**32 # Takto to vyžaduje gplearn.
 	print("seed =", seed)
-	fr, fr_str = regressionFr(coords,
+	fr, fr_str = regressionOfFailureRate(coords,
 		seed = seed,
 		population_size = arguments.population_size,
 		generations = arguments.generations)
